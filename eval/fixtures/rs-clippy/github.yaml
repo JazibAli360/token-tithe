@@ -1,0 +1,23 @@
+repo:
+  full_name: tithe-fixtures/rs-clippy
+  description: Word statistics
+  private: false
+  archived: false
+  fork: false
+  stargazers_count: 95
+  language: Rust
+  license: MIT
+  default_branch: main
+  pushed_days_ago: 3
+issues:
+  - number: 4
+    title: CI red after toolchain update — clippy warnings
+    labels: [good first issue, ci]
+    created_days_ago: 5
+    body: |
+      Since the stable toolchain bump, `cargo clippy --all-targets -- -D warnings` fails on
+      `src/lib.rs` (len_zero, needless_range_loop, needless_return, unnecessary_map_or).
+      Behavior must not change; just make clippy happy.
+    comments: []
+pulls_recent:
+  - {number: 3, author_association: CONTRIBUTOR, merged_days_ago: 9}

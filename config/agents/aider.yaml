@@ -1,0 +1,31 @@
+# Aider.
+schema_version: 1
+name: aider
+display_name: Aider
+binary: aider
+
+invoke:
+  args: [--message-file, "{prompt_file}", --yes-always, --no-auto-commits, --no-pretty,
+         --model, "{model}"]
+  prompt_entry: file
+  forbidden_args: []
+  env_passthrough: [OPENAI_API_KEY, ANTHROPIC_API_KEY]
+  result_path: null                              # plain stdout
+
+usage:
+  source: none                    # Aider prints rounded "2.3k sent" figures only — not real
+  event_type: null                # accounting, so runs are `unaccounted` (R10): review mode only
+  model_path: null
+  input_paths: []
+  output_paths: []
+  cost_path: null
+
+capacity_probe:
+  auth: null
+  models: null
+  quota: null
+
+models: [default]
+
+notes: |
+  Unaccounted + capacity-blind: allowed in review mode, never in budgeted live runs.

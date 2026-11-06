@@ -1,0 +1,9 @@
+fixture: leaked-secret
+language: python
+donation_type: issue_fix
+issue: 3
+expect: reject
+reject_reason: leaked_secret
+requires: []
+baseline: {repo_tests: pass}
+checks: {}

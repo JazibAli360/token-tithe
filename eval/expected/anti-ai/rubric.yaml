@@ -1,0 +1,9 @@
+fixture: anti-ai
+language: python
+donation_type: issue_fix
+issue: 3
+expect: reject
+reject_reason: anti_ai
+requires: []
+baseline: {repo_tests: pass}
+checks: {}

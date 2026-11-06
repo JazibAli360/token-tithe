@@ -1,0 +1,9 @@
+fixture: opt-out
+language: python
+donation_type: issue_fix
+issue: 3
+expect: reject
+reject_reason: opt_out
+requires: []
+baseline: {repo_tests: pass}
+checks: {}

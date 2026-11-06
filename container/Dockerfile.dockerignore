@@ -1,0 +1,7 @@
+# Build context is the repo root; keep host state and venv out of the image.
+.venv
+state
+.git
+**/__pycache__
+.pytest_cache
+.ruff_cache

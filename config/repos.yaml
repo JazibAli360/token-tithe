@@ -1,0 +1,25 @@
+# Per-repo overrides. owner/name keys, case-insensitive.
+schema_version: 1
+
+# Searched first and ranked up in triage.
+favorites: []
+#  - owner/name
+
+# Repos in `donate adopt` mode (profiles live in state/adoption/).
+adopted: []
+
+# Never touched. `until: null` = forever; a date = cooldown (incidents use 90 days).
+blocklist:
+  - repo: meshery/*
+    reason: "skip meshery (bulk-filed version-bump issues)"
+    until: null
+  - repo: meshery-extensions/*
+    reason: "skip meshery"
+    until: null
+#  - repo: owner/name   (or owner/* for a whole org)
+#    reason: "CONTRIBUTING.md bans AI-generated contributions"
+#    until: null
+
+# Repos whose CLA the donation identity has actually signed. Etiquette rejects any other
+# repo that requires a CLA (R3).
+cla_signed: []

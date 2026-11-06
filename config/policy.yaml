@@ -1,0 +1,136 @@
+# token-tithe policy. Every limit the engine enforces lives here.
+# Loaded and strictly validated by src/token_tithe/policy.py: unknown keys and wrong types are errors.
+schema_version: 1
+
+# R5 / review mode. `trust: false` means even --live runs only write proposals to state/review/;
+# a human opens them with `donate review --open N --live`. Flip only after the eval suite and a
+# few weeks of reviewed runs say the agent has earned it.
+trust: false
+
+budget:                       # R10 / R15 / A4
+  max_tokens_per_run: 100000000 # "there is no budget" — cap set high; R10 guard stays
+  min_viable_tokens: 60000    # below this a run attempts nothing and says so
+  default_task_tokens:        # fallback cost estimates until the ledger has real averages
+    issue_fix: 150000
+    tests: 90000
+    docs: 60000
+    ci_repro: 180000
+    triage_report: 50000
+
+confidence_threshold: 70      # R11: below this, work goes to the review queue
+
+rate_limits:                  # R4: never exceeded
+  max_prs_per_repo_per_30_days: 3
+  max_prs_per_day: 5
+  max_comments_per_issue: 1
+
+licenses:                     # R3: SPDX ids
+  allow: [MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MPL-2.0]
+  gpl_opt_in: false
+  gpl_family: [GPL-2.0, GPL-2.0-only, GPL-2.0-or-later, GPL-3.0, GPL-3.0-only, GPL-3.0-or-later,
+               LGPL-2.1, LGPL-2.1-only, LGPL-2.1-or-later, LGPL-3.0, LGPL-3.0-only,
+               LGPL-3.0-or-later, AGPL-3.0, AGPL-3.0-only, AGPL-3.0-or-later]
+
+discovery:                    # §4
+  languages: [python, javascript, typescript, go, rust]
+  labels: [good first issue, help wanted]
+  min_stars: 10000              # famous repos with a sizable community
+  max_stars: 100000
+  pushed_within_days: 60
+  per_query_limit: 30
+  exclude_recent_repo_days: 30   # repos we touched within this window are skipped
+  claim_window_days: 14          # skip issues a contributor claimed in a comment this recently (R9)
+  # prioritize projects that help the world and creative open source.
+  # Repos with these GitHub topics are searched directly and get up to +20 in triage. Each topic
+  # costs ~3 search calls (GitHub allows 30/min), so keep the list short.
+  impact_topics: [climate-change, sustainability, accessibility, healthcare, education,
+                  humanitarian, open-science, civic-tech, creative-coding, generative-art,
+                  music, game-development]
+  impact_repos_per_topic: 5
+  # also search bug-labelled issues, but only in the impact-topic repos above
+  # (≥ min_stars); a global bug-label search would be flooded by small repos.
+  impact_labels: [bug, "type: bug", "Type: Bug", "kind/bug", "type/bug", "🐛 bug", "confirmed bug"]
+
+limits:
+  max_diff_lines: 400          # R8
+  task_timeout_minutes: 90     # D3 — browser test suites (Tone.js) need longer
+  max_tasks_per_run: 3
+
+subagents:                     # R13
+  allow_subagents: false
+  max_subagents_per_task: 1
+
+sandbox:                       # R16 / D1
+  allow_unsandboxed: false     # live runs refuse without Docker unless this is true (and it is logged)
+  image: token-tithe-sandbox:latest
+  network: none                # test, lint and build runs: no network at all
+  agent_network: bridge        # agents must reach their model API. Docker alone cannot
+                               # allowlist hosts; set install_proxy to an egress proxy that does.
+  install_proxy: ""            # optional http(s) proxy URL enforcing install_allowlist
+  install_allowlist:           # hosts the proxy should allow during dependency install
+    - pypi.org
+    - files.pythonhosted.org
+    - registry.npmjs.org
+    - crates.io
+    - static.crates.io
+    - index.crates.io
+    - proxy.golang.org
+    - sum.golang.org
+  repo_env:                    # per-repo env for install/test/lint: only the switches the repo's
+                               # own CI uses on runners without a GPU/display, never test skips
+    {}                         # e.g. owner/name: {SOME_CI_SWITCH: "no"}
+  repo_extra_deps:             # per-repo extra pip packages: only optional deps the repo declares
+    tBuLi/kingdon: [numba]     # its `arrays` group; torch/jax left out (multi-GB via pip)
+
+signing:                       # R18 / D7 — the dedicated donation identity
+  required: true
+  format: ssh                  # ssh | openpgp
+  committer_name: ""           # set by `make quickstart`, or by hand (docs/ONBOARDING.md §7)
+  committer_email: ""          # e.g. 12345+you@users.noreply.github.com
+  signing_key_env: TITHE_SIGNING_KEY   # env var holding the key path or key id — never the key itself
+  # sign off (Developer Certificate of Origin) as the committer above
+  # on repos that require it (DCO file, .github/dco.yml, or CONTRIBUTING asks for Signed-off-by).
+  dco_signoff: true
+
+second_review:                 # D5
+  required: true               # no second reviewer available -> hold in review queue
+  weight: 0.4                  # share of the confidence score from the second review
+  agent: ""                    # reviewer agent, e.g. codex or claude ("" = none configured)
+  model: ""                    # reviewer model; must differ from the author's model
+
+address:                       # D6
+  max_rounds: 3
+  window_days: 14
+  max_diff_lines: 200
+
+donation_window:               # D9 — use-it-or-lose-it credits
+  cycle_end: null              # YYYY-MM-DD of the billing-cycle end, or null
+  expiring_days: 7
+  review_mode_hours_before: 48
+
+security:                      # D4
+  secrets_scan: true
+  report_via_advisory: false   # if true, report leaked secrets once via the repo's private advisory channel
+
+routing:                       # §6 / D10 — agent per language or donation type.
+  default: claude              # an agent joins routing only after passing `make eval`
+  by_language: {}              # e.g. {rust: codex}
+  by_donation_type: {}         # e.g. {docs: aider}
+
+donation_types:                # §5 — which types run, and where
+  issue_fix:     {enabled: true,  languages: []}   # [] = every discovery language
+  tests:         {enabled: true,  languages: []}
+  docs:          {enabled: true,  languages: []}
+  ci_repro:      {enabled: true,  languages: []}
+  triage_report: {enabled: true,  languages: []}
+
+feedback:                      # §7 outcome tracking
+  stale_after_days: 30         # an open PR with no activity this long counts as stale
+  incident_cooldown_days: 90   # blocklist duration after an incident (SAFETY.md)
+
+brain:                         # Addendum E
+  max_lines: 500
+  stale_after_days: 180
+  auto_inject: true
+  max_injected: 6              # lessons injected into one task brief
+  sync_remote: ""              # optional git URL of a shared brain repo (docs/LEARNING.md)

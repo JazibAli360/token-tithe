@@ -1,0 +1,6 @@
+[package]
+name = "wordstat"
+version = "0.2.0"
+edition = "2021"
+license = "MIT"
+description = "Word statistics"

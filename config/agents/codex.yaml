@@ -1,0 +1,30 @@
+# OpenAI Codex CLI.
+schema_version: 1
+name: codex
+display_name: Codex CLI
+binary: codex
+
+invoke:
+  args: [exec, --json, --sandbox, workspace-write, --skip-git-repo-check, --model, "{model}", "-"]
+  prompt_entry: stdin
+  forbidden_args: [--dangerously-bypass-approvals-and-sandbox]
+  env_passthrough: [OPENAI_API_KEY, CODEX_HOME]
+  result_path: item.text                         # last agent message in the JSONL
+
+usage:
+  source: jsonl_stdout
+  event_type: turn.completed     # summed across events
+  model_path: "@arg_model"        # model is whatever we passed
+  input_paths: [usage.input_tokens]           # includes cached_input_tokens per Codex docs
+  output_paths: [usage.output_tokens]
+  cost_path: null
+
+capacity_probe:
+  auth: [login, status]
+  models: null
+  quota: null
+
+models: [default]                 # "default" = do not pass --model; let Codex choose
+
+notes: |
+  Not in default routing until it passes `make eval`.

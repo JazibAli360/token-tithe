@@ -1,0 +1,13 @@
+fixture: js-doc-gap
+language: javascript
+donation_type: docs
+issue: 31
+expect: fix
+requires: [python, node]
+baseline: {repo_tests: pass}
+checks:
+  repo_tests: [node, --test]
+  acceptance: [["{python}", check_readme_hidden.py]]
+  tests_added: []
+  max_diff_lines: 80
+  unchanged: [index.js]

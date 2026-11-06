@@ -1,0 +1,23 @@
+repo:
+  full_name: tithe-fixtures/py-untested
+  description: Text utilities
+  private: false
+  archived: false
+  fork: false
+  stargazers_count: 150
+  language: Python
+  license: BSD-3-Clause
+  default_branch: main
+  pushed_days_ago: 6
+issues:
+  - number: 7
+    title: Add tests for textkit.ranges
+    labels: [good first issue, help wanted, tests]
+    created_days_ago: 15
+    body: |
+      `textkit/ranges.py` (`parse_ranges`, `format_ranges`) has no tests at all.
+      Please add a test module covering normal input, whitespace, duplicates, unsorted
+      input and the descending-range error. No behavior changes, just tests.
+    comments: []
+pulls_recent:
+  - {number: 5, author_association: CONTRIBUTOR, merged_days_ago: 21}

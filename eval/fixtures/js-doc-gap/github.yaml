@@ -1,0 +1,25 @@
+repo:
+  full_name: tithe-fixtures/js-doc-gap
+  description: Turn any string into a URL slug
+  private: false
+  archived: false
+  fork: false
+  stargazers_count: 812
+  language: JavaScript
+  license: MIT
+  default_branch: main
+  pushed_days_ago: 11
+issues:
+  - number: 31
+    title: "README: document the API (slugify options, isSlug)"
+    labels: [documentation, good first issue]
+    created_days_ago: 20
+    body: |
+      The README only shows the one-line quick start. The options for `slugify`
+      (`separator`, `lowercase`, `maxLength`) and the `isSlug` helper are only documented
+      in JSDoc comments in `index.js`. Please add an **API** section to the README.
+    comments:
+      - {user: slug-maint, association: OWNER, days_ago: 19,
+         body: "Yes please — an `## API` section after Quick start would be great."}
+pulls_recent:
+  - {number: 29, author_association: CONTRIBUTOR, merged_days_ago: 14}

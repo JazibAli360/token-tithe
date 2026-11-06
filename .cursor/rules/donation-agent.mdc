@@ -1,0 +1,7 @@
+---
+description: token-tithe operating manual
+alwaysApply: true
+---
+
+Follow `AGENTS.md` at the repo root. Its hard rules (R1–R19) are non-negotiable. If
+`state/HANDOVER.md` exists, read it first and resume from it, then read `brain/BRAIN.md`.

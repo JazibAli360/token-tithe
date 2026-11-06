@@ -1,0 +1,36 @@
+# Claude Code — primary operator and default task agent.
+schema_version: 1
+name: claude
+display_name: Claude Code
+binary: claude
+
+invoke:
+  # Placeholders: {prompt} {prompt_file} {model}. Runs with cwd = the task worktree.
+  args: [-p, "{prompt}", --output-format, json, --model, "{model}",
+         --permission-mode, acceptEdits, --no-session-persistence,
+         --allowedTools, Bash, Read, Edit, Write, Glob, Grep,   # must run the repo's tests
+         --disallowedTools, Task, Agent]          # R13: no sub-agent tools
+  prompt_entry: argument                         # argument | stdin | file
+  forbidden_args: [--dangerously-skip-permissions]   # only the sandbox may relax permissions
+  env_passthrough: [ANTHROPIC_API_KEY, CLAUDE_CODE_OAUTH_TOKEN]
+  result_path: result                           # final answer text in the JSON
+
+usage:                         # R10: real numbers from the agent's own accounting
+  source: json_stdout          # json_stdout | jsonl_stdout | none
+  event_type: null             # jsonl only: which event carries usage
+  model_path: "modelUsage.@first_key"
+  input_paths: [usage.input_tokens, usage.cache_creation_input_tokens, usage.cache_read_input_tokens]
+  output_paths: [usage.output_tokens]
+  cost_path: total_cost_usd
+
+capacity_probe:                # Addendum A
+  auth: [auth, status, --json]
+  models: null                 # no CLI listing; `models` below is authoritative
+  quota: null                  # no CLI exposes remaining subscription/API credit -> capacity-blind
+
+models: [claude-opus-5-5, claude-sonnet-5-5]   # ordered fallback; eval-gated
+
+notes: |
+  `--output-format json` returns one JSON object with usage, total_cost_usd and modelUsage.
+  Without a quota probe this adapter is capacity-blind: it runs in review mode only until a
+  real quota source exists (docs/CAPACITY.md).

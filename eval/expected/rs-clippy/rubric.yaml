@@ -1,0 +1,12 @@
+fixture: rs-clippy
+language: rust
+donation_type: ci_repro
+issue: 4
+expect: fix
+requires: [cargo]
+baseline: {repo_tests: pass}
+checks:
+  repo_tests: [cargo, test, -q]
+  lint: [[cargo, clippy, --all-targets, -q, --, -D, warnings]]
+  acceptance: [[cargo, test, -q, --test, acceptance_hidden]]
+  max_diff_lines: 60

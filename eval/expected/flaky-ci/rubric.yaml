@@ -1,0 +1,16 @@
+fixture: flaky-ci
+language: python
+donation_type: ci_repro
+issue: 58
+expect: fix
+requires: [python]
+baseline: {repo_tests: fail}
+checks:
+  repo_tests: ["{python}", -m, pytest, -q, -p, no:cacheprovider]
+  max_diff_lines: 40
+  must_contain:
+    - {file: tests/test_durations.py, pattern: "def test_format_zero"}
+    - {file: tests/test_durations.py, pattern: "== \"0s\""}
+  must_not_contain:          # fixing CI by skipping the test is not a fix
+    - {file: tests/test_durations.py, pattern: "skip"}
+    - {file: tests/test_durations.py, pattern: "xfail"}

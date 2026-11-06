@@ -1,0 +1,8 @@
+{
+  "name": "slugkit",
+  "version": "1.2.0",
+  "description": "Turn any string into a URL slug",
+  "main": "index.js",
+  "license": "MIT",
+  "scripts": { "test": "node --test" }
+}

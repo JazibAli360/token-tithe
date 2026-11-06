@@ -1,0 +1,3 @@
+# boundkit
+
+Numeric helpers.
