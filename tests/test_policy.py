@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 import yaml
 
+from token_tithe import paths
 from token_tithe import policy as P
 
 
@@ -159,3 +160,35 @@ def test_agent_name_must_match_file(config_copy):
     f.write_text(f.read_text().replace("name: claude", "name: imposter"))
     with pytest.raises(P.PolicyError, match="must match file name"):
         P.load_agent(f)
+
+
+def test_local_overlay_overrides_policy_and_extends_repos(config_copy):
+    from token_tithe import local_config
+
+    pol, repos = config_copy / "policy.yaml", config_copy / "repos.yaml"
+    base = P.load_policy(pol)
+    local_config.set_value(pol, "signing.committer_name", "Ada")
+    local_config.set_value(pol, "budget.max_tokens_per_run", 123456)
+    over = P.load_policy(pol)
+    assert over.signing.committer_name == "Ada" and over.budget.max_tokens_per_run == 123456
+    assert over.signing.format == base.signing.format, "untouched keys keep shared defaults"
+    assert 'committer_name: ""' in pol.read_text(), "shared file never edited"
+
+    shared = len(P.load_repos(repos).blocklist)
+    local_config.append_item(repos, "blocklist", {"repo": "a/b", "reason": "mine", "until": None})
+    assert len(P.load_repos(repos).blocklist) == shared + 1, "repos lists combine"
+
+
+def test_bad_overlay_is_a_clear_policy_error(config_copy):
+    (config_copy / "policy.local.yaml").write_text("budget: {max_tokens_per_run: lots}\n")
+    with pytest.raises(P.PolicyError, match="max_tokens_per_run"):
+        P.load_policy(config_copy / "policy.yaml")
+    (config_copy / "policy.local.yaml").write_text("- not a mapping\n")
+    with pytest.raises(P.PolicyError, match="policy.local.yaml"):
+        P.load_policy(config_copy / "policy.yaml")
+
+
+def test_real_config_ignores_overlay_under_tests():
+    from token_tithe import local_config
+
+    assert not local_config.overlay_enabled(paths.POLICY_FILE)

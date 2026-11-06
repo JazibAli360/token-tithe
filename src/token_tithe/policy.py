@@ -15,7 +15,7 @@ from typing import Any, Literal, Union, get_args, get_origin, get_type_hints
 
 import yaml
 
-from token_tithe import paths
+from token_tithe import local_config, paths
 
 DONATION_TYPES = ("issue_fix", "tests", "docs", "ci_repro", "triage_report")
 
@@ -344,9 +344,17 @@ def _read_yaml(path: Path) -> dict:
     return data
 
 
-def _load(tp: type, path: Path) -> Any:
+def _load(tp: type, path: Path, overlay: str | None = None) -> Any:
+    """overlay: None (agents), "replace" (policy: lists replace) or "extend" (repos: lists add)."""
     try:
-        return _build(tp, _read_yaml(path), "")
+        data = _read_yaml(path)
+        if overlay:
+            try:
+                over = local_config.read_overlay(path)
+            except (ValueError, yaml.YAMLError) as e:
+                raise PolicyError(f"{paths.rel(local_config.local_path(path))}: {e}") from None
+            data = local_config.merge(data, over, extend_lists=overlay == "extend")
+        return _build(tp, data, "")
     except PolicyError as e:
         msg = str(e)
         if not msg.startswith(paths.rel(path)):
@@ -358,7 +366,7 @@ def _load(tp: type, path: Path) -> Any:
 
 
 def load_policy(path: Path = paths.POLICY_FILE) -> Policy:
-    policy: Policy = _load(Policy, path)
+    policy: Policy = _load(Policy, path, overlay="replace")
     _check_policy(policy, path)
     return policy
 
@@ -377,7 +385,7 @@ def for_fixtures(policy: Policy) -> Policy:
 
 
 def load_repos(path: Path = paths.REPOS_FILE) -> Repos:
-    return _load(Repos, path)
+    return _load(Repos, path, overlay="extend")
 
 
 def load_agent(name_or_path: str | Path, directory: Path = paths.AGENTS_CONFIG) -> AgentConfig:

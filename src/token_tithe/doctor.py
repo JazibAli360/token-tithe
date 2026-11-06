@@ -16,7 +16,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 
-from token_tithe import paths
+from token_tithe import local_config, paths
 from token_tithe.policy import PolicyError, load_agents, load_policy, load_repos
 from token_tithe.secrets_scan import iter_text_files, scan_lines, scan_tree
 
@@ -168,6 +168,36 @@ def check_github_token(env: Mapping[str, str]) -> Check:
     return Check("GITHUB_TOKEN (env only, R6)", WARN, "unset — needed for discovery and --live")
 
 
+# A classic token with only `public_repo` can fork, push to the fork and open PRs on public
+# repos — everything the engine does (R17: public only). Fine-grained tokens cannot open PRs on
+# repos you don't own. Anything beyond these scopes is power the engine never needs.
+NEEDED_SCOPES = {"public_repo", "read:user", "user:email", "read:org"}
+
+
+def check_token_scope(env: Mapping[str, str]) -> Check:
+    name = "GITHUB_TOKEN scope"
+    token = env.get("GITHUB_TOKEN", "")
+    if not token:
+        return Check(name, INFO, "no token to check")
+    try:
+        import httpx
+
+        r = httpx.get("https://api.github.com/user", timeout=5,
+                      headers={"Authorization": f"Bearer {token}"})  # fmt: skip
+    except Exception as e:  # network trouble is reported by the network check
+        return Check(name, INFO, f"not checked ({type(e).__name__})")
+    if r.status_code == 401:
+        return Check(name, WARN, "token rejected (401) — refresh it")
+    if "x-oauth-scopes" not in r.headers:
+        return Check(name, INFO, "fine-grained/app token: cannot open PRs on others' repos")
+    scopes = {s.strip() for s in r.headers["x-oauth-scopes"].split(",") if s.strip()}
+    extra = sorted(scopes - NEEDED_SCOPES)
+    if extra:
+        return Check(name, WARN, f"broader than needed ({', '.join(extra)}) — a classic token with "
+                     "only public_repo is enough (docs/SAFETY.md, 'GitHub token')")  # fmt: skip
+    return Check(name, PASS, ", ".join(sorted(scopes)) or "public data only")
+
+
 def check_network() -> Check:
     try:
         import httpx
@@ -189,12 +219,15 @@ def check_config() -> tuple[list[Check], object | None]:
     policy = None
     try:
         policy = load_policy()
-        checks.append(Check("config/policy.yaml", PASS, "valid"))
+        local = local_config.local_path(paths.POLICY_FILE)
+        mine = f" + your {local.name}" if local_config.read_overlay(paths.POLICY_FILE) else ""
+        checks.append(Check("config/policy.yaml", PASS, "valid" + mine))
     except PolicyError as e:
         checks.append(Check("config/policy.yaml", FAIL, str(e)))
     try:
         repos = load_repos()
-        checks.append(Check("config/repos.yaml", PASS, f"{len(repos.blocklist)} blocklisted"))
+        mine = " (incl. repos.local.yaml)" if local_config.read_overlay(paths.REPOS_FILE) else ""
+        checks.append(Check("config/repos.yaml", PASS, f"{len(repos.blocklist)} blocklisted{mine}"))
     except PolicyError as e:
         checks.append(Check("config/repos.yaml", FAIL, str(e)))
     try:
@@ -301,6 +334,7 @@ def run_doctor(offline: bool = False, env: Mapping[str, str] | None = None) -> l
     checks.append(check_github_token(env))
     if not offline:
         checks.append(check_network())
+        checks.append(check_token_scope(env))
     if policy is not None:
         checks.append(check_signing(policy, env))
     checks += [check_layout(), check_gitignore(), check_abs_paths(), check_secrets(env=env)]

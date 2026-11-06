@@ -5,9 +5,9 @@
 #   ./scripts/quickstart.sh --yes         # agents: the human already said OK to installs + config
 #   ./scripts/quickstart.sh --agent codex # pick the task agent (claude | codex | aider)
 #
-# Safe to re-run any time. It never opens a PR, never comments, never stores a secret:
-# everything it does is local, or read-only against GitHub. Without a terminal and without
-# --yes it changes nothing outside .venv/ and lists what it skipped at the end.
+# Safe to re-run any time. It never opens a PR, never comments, never stores a secret in the
+# repo. Your settings go to config/*.local.yaml (gitignored), so `git pull` stays clean.
+# Without a terminal and without --yes it changes nothing outside .venv/ and lists what it skipped.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -16,7 +16,9 @@ AGENT=""
 while [ $# -gt 0 ]; do
   case "$1" in
     -y|--yes) ASSUME_YES=1 ;;
-    --agent) AGENT="${2:-}"; shift ;;
+    --agent)
+      [ $# -ge 2 ] || { echo "--agent needs a value: claude, codex or aider"; exit 2; }
+      AGENT="$2"; shift ;;
     --agent=*) AGENT="${1#--agent=}" ;;
     -h|--help) sed -n '2,10p' "$0"; exit 0 ;;
     *) echo "unknown option: $1 (try --help)"; exit 2 ;;
@@ -24,49 +26,37 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-HUMAN=()     # things only the human can do (sign-ins, passwords)
+HUMAN=()     # things only the human can do (sign-ins, browser approvals, shell profile)
 SKIPPED=()   # things skipped for lack of consent
-bold() { printf '\n\033[1m%s\033[0m\n' "$*"; }
-ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; }
-warn() { printf '  \033[33m!\033[0m %s\n' "$*"; }
+if [ -t 1 ] && [ -z "${NO_COLOR:-}" ]; then B=$'\033[1m'; G=$'\033[32m'; Y=$'\033[33m'; R=$'\033[0m'
+else B=""; G=""; Y=""; R=""; fi
+bold() { printf '\n%s%s%s\n' "$B" "$*" "$R"; }
+ok()   { printf '  %s✓%s %s\n' "$G" "$R" "$*"; }
+warn() { printf '  %s!%s %s\n' "$Y" "$R" "$*"; }
 have() { command -v "$1" >/dev/null 2>&1; }
 ask()  {  # ask "question" -> 0 for yes
   if [ "$ASSUME_YES" = 1 ]; then echo "  $1 → yes (--yes)"; return 0; fi
   if [ -t 0 ]; then local a; read -r -p "  $1 [y/N] " a; [[ "$a" =~ ^[Yy] ]]; return; fi
   echo "  $1 → skipped (no terminal; re-run with --yes to allow)"; SKIPPED+=("$1"); return 1
 }
-
 OS="$(uname -s)"
-install_hint() {  # install_hint <brew-formula> <apt-package> <url>
-  if [ "$OS" = Darwin ] && have brew; then echo "brew install $1"
-  elif have apt-get; then echo "sudo apt-get install -y $2"
-  else echo "see $3"; fi
+PY=.venv/bin/python
+pol() {  # pol <dotted.key>: read the EFFECTIVE policy value (shared + your overlay)
+  "$PY" -c 'import sys, dataclasses
+from token_tithe.policy import load_policy
+v = load_policy()
+for k in sys.argv[1].split("."): v = getattr(v, k)
+print(v)' "$1"
 }
-try_install() {  # try_install <cmd> <brew-formula> <apt-package> <url>
-  local cmd="$1" hint; hint="$(install_hint "$2" "$3" "$4")"
-  have "$cmd" && return 0
-  warn "$cmd is missing ($hint)"
-  if [[ "$hint" != see* ]] && ask "Install $cmd now with: $hint ?"; then
-    eval "$hint" && have "$cmd" && ok "$cmd installed" && return 0
-  fi
-  return 1
+setlocal() {  # setlocal <dotted.key> <value>: write to config/policy.local.yaml (never the shared file)
+  "$PY" -c 'import sys
+from token_tithe import local_config, paths
+from token_tithe.policy import load_policy
+local_config.set_value(paths.POLICY_FILE, sys.argv[1], sys.argv[2]); load_policy()' "$1" "$2"
 }
-set_yaml() {  # set_yaml <file> <indented key> <value>: replace one scalar in place, keep comments
-  .venv/bin/python - "$@" <<'PY'
-import re, sys
-path, key, val = sys.argv[1], sys.argv[2], sys.argv[3].replace('"', "'")
-text = open(path, encoding="utf-8").read()
-new, n = re.subn(rf'^({re.escape(key)}:\s*)("[^"]*"|[^\s#]+)', lambda m: f'{m.group(1)}"{val}"'
-                 if m.group(2).startswith('"') else f"{m.group(1)}{val}", text, count=1, flags=re.M)
-if not n:
-    sys.exit(f"{path}: {key.strip()} not found")
-open(path, "w", encoding="utf-8").write(new)
-PY
-}
-POLICY=config/policy.yaml
 
 # --------------------------------------------------------------------------- 1. prerequisites
-bold "1/7  Prerequisites"
+bold "1/8  Prerequisites"
 py_ok=""
 for p in python3.13 python3.12 python3.11 python3; do
   if have "$p" && "$p" -c 'import sys; sys.exit(sys.version_info < (3,11))' 2>/dev/null; then
@@ -76,46 +66,62 @@ done
 if [ -n "$py_ok" ]; then ok "Python ≥ 3.11 ($py_ok)"
 elif have uv; then ok "uv (will provision Python 3.12 inside .venv/)"
 else
-  try_install uv uv pipx "https://docs.astral.sh/uv/" \
-    || { echo "BLOCKED: need Python ≥ 3.11 or uv. Install one and re-run."; exit 1; }
+  hint=""
+  if [ "$OS" = Darwin ] && have brew; then hint="brew install uv"
+  elif have pipx; then hint="pipx install uv"; fi
+  if [ -n "$hint" ] && ask "Python ≥ 3.11 not found. Install uv (it provides one) with: $hint ?"; then
+    $hint || true
+  fi
+  have uv || { echo "BLOCKED: need Python ≥ 3.11 or uv — see https://docs.astral.sh/uv/ and re-run."; exit 1; }
+  ok "uv installed"
 fi
 have git || { echo "BLOCKED: git is required. Install it and re-run."; exit 1; }
 ok "git"
-try_install gh gh gh "https://cli.github.com" \
-  || { echo "BLOCKED: the GitHub CLI (gh) is required. Install it and re-run."; exit 1; }
+if ! have gh; then
+  if [ "$OS" = Darwin ] && have brew && ask "GitHub CLI missing. Install with: brew install gh ?"; then
+    brew install gh || true
+  fi
+  have gh || { echo "BLOCKED: the GitHub CLI (gh) is required — https://cli.github.com/ (Linux: use its apt repo; distro packages are often too old). Re-run after."; exit 1; }
+fi
+gh_ver="$(gh --version | sed -n 's/^gh version \([0-9]*\)\.\([0-9]*\).*/\1 \2/p')"
+set -- $gh_ver
+if [ "${1:-0}" -lt 2 ] || { [ "${1:-0}" -eq 2 ] && [ "${2:-0}" -lt 17 ]; }; then
+  echo "BLOCKED: gh ${1:-?}.${2:-?} is too old (need ≥ 2.17) — install from https://cli.github.com/ and re-run."; exit 1
+fi
 ok "gh (GitHub CLI)"
-if have docker && docker info >/dev/null 2>&1; then ok "Docker running (needed only for --live)"
-else warn "Docker not running — fine for now; opening real PRs needs it (Docker Desktop / docker.io)."; fi
+DOCKER=0
+if have docker && docker info >/dev/null 2>&1; then DOCKER=1; ok "Docker running"
+else warn "Docker not running — recommended: it isolates the repos' code from your machine; required for real PRs."; fi
 
 # --------------------------------------------------------------------------- 2. venv
-bold "2/7  Installing token-tithe into ./.venv (nothing touches your system Python)"
+bold "2/8  Installing token-tithe into ./.venv (nothing touches your system Python)"
 make --no-print-directory setup
 ok "installed: .venv/bin/donate"
 
 # --------------------------------------------------------------------------- 3. task agent
-bold "3/7  Task agent (the coding agent that writes the fixes)"
-npm_pkg() { case "$1" in claude) echo "@anthropic-ai/claude-code" ;; codex) echo "@openai/codex" ;; esac; }
+bold "3/8  Task agent (the coding agent that writes the fixes)"
+cur_agent="$(pol routing.default)"
 if [ -z "$AGENT" ]; then
-  for a in claude codex aider; do have "$a" && { AGENT="$a"; break; }; done
+  if have "$cur_agent"; then AGENT="$cur_agent"
+  else for a in claude codex aider; do have "$a" && { AGENT="$a"; break; }; done; fi
 fi
-AGENT="${AGENT:-claude}"
+AGENT="${AGENT:-$cur_agent}"
 case "$AGENT" in claude|codex|aider) ;; *)
   echo "BLOCKED: --agent must be claude, codex or aider (others: docs/AGENT_INTEGRATION.md)"; exit 2 ;;
 esac
 if ! have "$AGENT"; then
-  pkg="$(npm_pkg "$AGENT")"
+  case "$AGENT" in claude) pkg="@anthropic-ai/claude-code" ;; codex) pkg="@openai/codex" ;; *) pkg="" ;; esac
   if [ -n "$pkg" ] && have npm && ask "Install the $AGENT CLI with: npm i -g $pkg ?"; then
-    npm i -g "$pkg" && ok "$AGENT CLI installed"
+    npm i -g "$pkg" || warn "npm install failed (permissions? see https://docs.npmjs.com/resolving-eacces-permissions-errors)"
   elif [ "$AGENT" = aider ] && have pipx && ask "Install aider with: pipx install aider-chat ?"; then
-    pipx install aider-chat && ok "aider installed"
-  else
-    warn "$AGENT CLI not installed — needed for real runs (not for the offline self-test)"
+    pipx install aider-chat || warn "pipx install aider-chat failed"
   fi
+  if have "$AGENT"; then ok "$AGENT CLI installed"
+  else warn "$AGENT CLI not installed — needed for real runs (not for the offline self-test)"; fi
 fi
-cur_agent="$(sed -n 's/^  default: *\([a-z0-9_-]*\).*/\1/p' "$POLICY" | head -1)"
 if [ "$cur_agent" = "$AGENT" ]; then ok "routing.default: $AGENT"
-elif ask "Route tasks to $AGENT (routing.default in $POLICY, now '$cur_agent')?"; then
-  set_yaml "$POLICY" "  default" "$AGENT" && ok "routing.default: $AGENT"
+elif ask "Route tasks to $AGENT (now '$cur_agent'; saved in config/policy.local.yaml)?"; then
+  setlocal routing.default "$AGENT" && ok "routing.default: $AGENT"
   [ "$AGENT" = claude ] || warn "recommended once: make eval AGENTS=reference,null,$AGENT  (spends tokens)"
 fi
 case "$AGENT" in
@@ -127,60 +133,87 @@ case "$AGENT" in
 esac
 
 # --------------------------------------------------------------------------- 4. GitHub
-bold "4/7  GitHub sign-in"
+bold "4/8  GitHub sign-in"
 if ! gh auth status >/dev/null 2>&1; then
-  if [ -t 0 ] && ask "You're not signed in to gh. Run 'gh auth login' now?"; then gh auth login
+  if [ -t 0 ] && ask "You're not signed in to gh. Run 'gh auth login' now?"; then gh auth login || true
   else HUMAN+=("Sign in to GitHub:  gh auth login   (then re-run make quickstart)"); fi
 fi
 GH_LOGIN=""
 if gh auth status >/dev/null 2>&1; then
   GH_LOGIN="$(gh api user --jq .login 2>/dev/null || true)"
   ok "signed in as ${GH_LOGIN:-?}"
-  export GITHUB_TOKEN="${GITHUB_TOKEN:-$(gh auth token)}"   # this process only, never written
+  if [ -z "${GITHUB_TOKEN:-}" ]; then GITHUB_TOKEN="$(gh auth token 2>/dev/null || true)"; export GITHUB_TOKEN; fi
 fi
 
-# --------------------------------------------------------------------------- 5. identity
-bold "5/7  Commit identity (who the PR commits are from)"
-cur_name="$(sed -n 's/^  committer_name: "\(.*\)".*/\1/p' "$POLICY")"
-cur_email="$(sed -n 's/^  committer_email: "\(.*\)".*/\1/p' "$POLICY")"
+# --------------------------------------------------------------------------- 5. identity + signing
+bold "5/8  Commit identity and signing (who the PR commits are from)"
+cur_name="$(pol signing.committer_name)"; cur_email="$(pol signing.committer_email)"
 if [ -n "$cur_name" ] && [ -n "$cur_email" ]; then
-  ok "already set: $cur_name <$cur_email>"
+  ok "identity: $cur_name <$cur_email>"
 elif [ -n "$GH_LOGIN" ]; then
-  gh_id="$(gh api user --jq .id)"
-  def_name="$(gh api user --jq '.name // .login')"
-  def_email="${gh_id}+${GH_LOGIN}@users.noreply.github.com"
-  echo "  Suggested: $def_name <$def_email>  (GitHub's private noreply address)"
-  echo "  Tip: a dedicated bot account is cleanest — see docs/ONBOARDING.md §7."
-  if ask "Write this identity to $POLICY?"; then
-    set_yaml "$POLICY" "  committer_name" "$def_name"
-    set_yaml "$POLICY" "  committer_email" "$def_email"
-    ok "identity written"
-  fi
+  gh_id="$(gh api user --jq .id 2>/dev/null || true)"
+  def_name="$(gh api user --jq '.name // .login' 2>/dev/null || echo "$GH_LOGIN")"
+  if [ -n "$gh_id" ]; then
+    def_email="${gh_id}+${GH_LOGIN}@users.noreply.github.com"
+    echo "  Suggested: $def_name <$def_email>  (GitHub's private noreply address)"
+    echo "  A dedicated bot account is cleanest for R18 — see docs/ONBOARDING.md §7."
+    if ask "Use this identity (saved in config/policy.local.yaml)?"; then
+      setlocal signing.committer_name "$def_name"
+      setlocal signing.committer_email "$def_email"
+      ok "identity saved"
+    fi
+  else warn "couldn't read your GitHub profile (network?) — re-run to set the identity"; fi
 else
   warn "sign in to gh first, then re-run to set the identity"
 fi
 
-KEY_HINT=""
-for k in id_ed25519.pub id_ecdsa.pub id_rsa.pub; do
-  [ -f "$HOME/.ssh/$k" ] && { KEY_HINT="\$HOME/.ssh/$k"; break; }
-done
+SIGNKEY="$HOME/.ssh/token_tithe_signing"
 if [ -n "${TITHE_SIGNING_KEY:-}" ]; then ok "TITHE_SIGNING_KEY is set"
-elif [ -n "$KEY_HINT" ]; then
-  HUMAN+=("For real PRs (signed commits): add to your shell profile  export TITHE_SIGNING_KEY=$KEY_HINT  and register it once:  gh ssh-key add $KEY_HINT --type signing")
 else
-  HUMAN+=("For real PRs (signed commits): ssh-keygen -t ed25519, then export TITHE_SIGNING_KEY=\$HOME/.ssh/id_ed25519.pub and gh ssh-key add it --type signing")
+  if [ ! -f "$SIGNKEY.pub" ] && have ssh-keygen \
+     && ask "Create a dedicated commit-signing key at ~/.ssh/token_tithe_signing?"; then
+    mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+    ssh-keygen -q -t ed25519 -N "" -C "token-tithe signing" -f "$SIGNKEY" && ok "signing key created"
+  fi
+  if [ -f "$SIGNKEY.pub" ]; then
+    if [ -n "$GH_LOGIN" ] && gh ssh-key list 2>/dev/null | grep -q "token-tithe"; then
+      ok "signing key registered on GitHub"
+    elif [ -n "$GH_LOGIN" ] && ask "Register it on GitHub as a *signing* key (gh ssh-key add)?"; then
+      if gh ssh-key add "$SIGNKEY.pub" --type signing --title "token-tithe" >/dev/null 2>&1; then
+        ok "signing key registered on GitHub"
+      else
+        HUMAN+=("Let gh add signing keys, then register it:  gh auth refresh -h github.com -s admin:ssh_signing_key && gh ssh-key add ~/.ssh/token_tithe_signing.pub --type signing --title token-tithe")
+      fi
+    fi
+    HUMAN+=("For real PRs, add to your shell profile (~/.zshrc or ~/.bashrc):  export TITHE_SIGNING_KEY=\$HOME/.ssh/token_tithe_signing.pub")
+  else
+    HUMAN+=("For real PRs: re-run make quickstart and say yes to the signing key (or see docs/ONBOARDING.md §7)")
+  fi
 fi
 
-# --------------------------------------------------------------------------- 6. prove it
-bold "6/7  Offline self-test (fixture repos, no network, no GitHub writes)"
+# --------------------------------------------------------------------------- 6. sandbox image
+bold "6/8  Sandbox image (isolates the repos' code; needed for real PRs)"
+if [ "$DOCKER" = 1 ]; then
+  if docker image inspect token-tithe-sandbox:latest >/dev/null 2>&1; then ok "sandbox image present"
+  elif ask "Build the sandbox image now (make sandbox-image, a few minutes, ~1–2 GB)?"; then
+    make --no-print-directory sandbox-image && ok "sandbox image built"
+  else warn "later: make sandbox-image"; fi
+else
+  HUMAN+=("Install/start Docker (Docker Desktop on macOS), then: make sandbox-image")
+fi
+
+# --------------------------------------------------------------------------- 7. prove it
+bold "7/8  Offline self-test (fixture repos, no network, no GitHub writes)"
 SIM=FAIL; DOC=FAIL
 make --no-print-directory simulate && SIM=PASS
 bold "     Health check"
-.venv/bin/donate doctor && DOC=PASS || warn "doctor reported FAILs above — fix those first (WARNs only block --live)"
+if .venv/bin/donate doctor; then DOC=PASS
+else warn "doctor reported FAILs above — fix those first (WARNs only block --live)"; fi
 
-# --------------------------------------------------------------------------- 7. summary
-bold "7/7  Summary"
+# --------------------------------------------------------------------------- 8. summary
+bold "8/8  Summary"
 echo "  self-test (simulate): $SIM · doctor: $DOC · task agent: $AGENT · GitHub: ${GH_LOGIN:-not signed in}"
+echo "  your settings: config/policy.local.yaml (gitignored — edit freely; 'make update' never touches it)"
 if [ ${#HUMAN[@]} -gt 0 ]; then
   echo; echo "  NEEDS A HUMAN (an agent can't do these for you):"
   for h in "${HUMAN[@]}"; do echo "    - $h"; done
@@ -192,15 +225,13 @@ fi
 cat <<'TXT'
 
   NEXT — all safe, nothing reaches GitHub until you add --live yourself:
-    export GITHUB_TOKEN=$(gh auth token)     # each new terminal (or add to your shell profile)
+    export GITHUB_TOKEN=$(gh auth token)     # or a classic token with only `public_repo` (safer)
     .venv/bin/donate capacity                # what this run can afford
     .venv/bin/donate discover --dry-run      # issues it would look at
     .venv/bin/donate run                     # agents work locally; proposals -> state/review/
     .venv/bin/donate review                  # read each proposal's diff
-  To open one as a real PR:  make sandbox-image  (once, Docker)  then
-    .venv/bin/donate review --open 1 --live
-
-  Driving this with an AI agent? Tell it: "Follow docs/AGENT_SETUP.md".
-  Full walkthrough: docs/ONBOARDING.md · Stop everything: .venv/bin/donate halt
+  To open one as a real PR:  .venv/bin/donate review --open 1 --live
+  Stay current:  make update     ·   Stop everything:  .venv/bin/donate halt
+  In Claude Code: /donate, /proposals, /donate-status   ·   Full guide: docs/ONBOARDING.md
 TXT
 [ "$SIM" = PASS ]

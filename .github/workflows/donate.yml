@@ -1,8 +1,8 @@
 name: donate
-# Scheduled/manual run. CI NEVER passes --live: this workflow can only dry-run.
+# Manual dry-run (Actions tab → donate → Run workflow). CI NEVER passes --live.
+# No schedule by default: on a private repo it would spend the owner's Actions minutes.
+# To run weekly in your own fork, add:   schedule: [{cron: "23 4 * * 1"}]
 on:
-  schedule:
-    - cron: "23 4 * * 1"
   workflow_dispatch:
 
 permissions:

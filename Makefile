@@ -10,7 +10,7 @@ IMAGE := token-tithe:local
 HOST_PY := $(shell for p in python3.13 python3.12 python3.11 python3; do \
 	command -v $$p >/dev/null 2>&1 && $$p -c 'import sys; sys.exit(sys.version_info < (3,11))' 2>/dev/null && { echo $$p; break; }; done)
 
-.PHONY: help quickstart setup doctor lint test eval sandbox-image discover donate report adopt halt resume stop \
+.PHONY: help quickstart update setup doctor lint test eval sandbox-image discover donate report adopt halt resume stop \
         capacity handover simulate container container-run clean
 
 help:  ## list targets
@@ -18,6 +18,14 @@ help:  ## list targets
 
 quickstart:  ## first time? start here: prereqs, install, sign-in, identity, self-test
 	./scripts/quickstart.sh $(ARGS)
+
+update:  ## pull the latest version, reinstall, re-check (your config/*.local.yaml is untouched)
+	@before=$$(git rev-parse HEAD); \
+	git pull --ff-only || { echo "update: can't fast-forward: local commits or edits to shared files (git status)"; exit 1; }; \
+	if [ "$$before" = "$$(git rev-parse HEAD)" ]; then echo "already up to date"; \
+	else echo "what's new:"; git log --oneline --no-decorate "$$before..HEAD" | sed 's/^/  /'; fi
+	@$(MAKE) --no-print-directory setup
+	$(DONATE) doctor
 
 $(PY):
 ifneq ($(HOST_PY),)

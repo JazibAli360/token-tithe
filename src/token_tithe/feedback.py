@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from token_tithe import paths
+from token_tithe import local_config, paths
 from token_tithe.github_api import GitHubAPI, GitHubError
 from token_tithe.ledger import Ledger
 from token_tithe.policy import Policy
@@ -131,20 +131,12 @@ def render_feedback(results: list[PrStatus]) -> str:
 
 
 def block_repo(repo: str, reason: str, days: int, repos_file: Path = paths.REPOS_FILE) -> str:
-    """Append a cooldown entry to config/repos.yaml without disturbing its comments."""
-    until = (datetime.now(UTC) + timedelta(days=days)).date().isoformat()
-    text = repos_file.read_text(encoding="utf-8")
-    entry = f"  - repo: {repo}\n    reason: {json.dumps(reason)}\n    until: {until}\n"
-    if re.search(r"^blocklist:\s*\[\]\s*$", text, re.M):
-        text = re.sub(r"^blocklist:\s*\[\]\s*$", "blocklist:\n" + entry.rstrip("\n"), text,
-                      count=1, flags=re.M)  # fmt: skip
-    elif re.search(r"^blocklist:\s*$", text, re.M):
-        text = re.sub(r"^(blocklist:\s*\n)", r"\g<1>" + entry.replace("\\", "\\\\"), text,
-                      count=1, flags=re.M)  # fmt: skip
-    else:
-        text = text.rstrip("\n") + "\n\nblocklist:\n" + entry
-    repos_file.write_text(text, encoding="utf-8")
-    return until
+    """Add a cooldown entry to your repos.local.yaml overlay (the shared repos.yaml is untouched)."""
+    until = (datetime.now(UTC) + timedelta(days=days)).date()
+    local_config.append_item(
+        repos_file, "blocklist", {"repo": repo, "reason": reason, "until": until}
+    )
+    return until.isoformat()
 
 
 def incident(

@@ -18,6 +18,21 @@ If `.venv/bin/donate` doesn't exist yet, your human wants it set up: follow
 `./scripts/quickstart.sh [--yes] --agent claude`, relay its Summary, and hand any sign-in
 or password step to the human. Never pass `--live` during setup.
 
+**Personal settings** go in `config/policy.local.yaml` / `config/repos.local.yaml` (gitignored,
+merged over the shared files). Never write a person's identity, budget or blocklist into the
+shared `config/policy.yaml` or `config/repos.yaml`.
+
+**Operator recipes** — what to do when the human says:
+
+| They say | You do |
+|---|---|
+| `/donate`, "run a donation round" / "use my leftover tokens" | `donate capacity`, `donate run --dry-run`; show the plan; on their OK `donate run`; then summarize `donate review` |
+| `/proposals`, "show the proposals" | `donate review`; for each: repo, issue, confidence, reasons, and the diff (`state/review/<id>/diff.patch`) |
+| "open #N" | confirm the repo/issue back to them, then `donate review --open N --live` |
+| `/donate-status`, "how are we doing" | `donate feedback`, then `donate report`; summarize PRs opened/merged/closed and tokens |
+| "stop" | `donate stop` (running run) or `donate halt` (nothing runs until `donate resume`) |
+| "update it" | `make update` |
+
 ## Hard rules (non-negotiable)
 
 1. **R1** PRs only. Never push to main/master, never merge, never force-push another's

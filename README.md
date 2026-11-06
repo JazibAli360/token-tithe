@@ -2,10 +2,19 @@
 
 **Donate your leftover AI-agent tokens to open source, without wasting a maintainer's time.**
 
-> **Setting up with an AI agent?** Give it this repo's link and say:
-> *"Set up github.com/JazibAli360/token-tithe by following docs/AGENT_SETUP.md, then show me
-> a dry-run."* Works with Claude Code, Codex, Cursor, Gemini CLI, Copilot, Aider and others —
-> they all read [AGENTS.md](AGENTS.md). **By hand?** `make quickstart` (see below).
+> **Setting up with an AI agent?** First, once: accept the collaborator invite, install the
+> GitHub CLI and run `gh auth login` (the repo is private, so the agent can't read it before
+> that). Then paste this into Claude Code, Codex, Cursor, Gemini CLI, Aider or any other agent:
+>
+> ```text
+> Clone the private repo JazibAli360/token-tithe with `gh repo clone JazibAli360/token-tithe`,
+> cd into it, and follow docs/AGENT_SETUP.md exactly: ask me once before installing anything,
+> run ./scripts/quickstart.sh with --agent set to yourself (claude, codex or aider), tell me
+> what's under NEEDS A HUMAN, then show me a dry-run. Never use --live unless I ask.
+> ```
+>
+> **By hand?** `make quickstart` (see below). **No install at all?** Open it in GitHub
+> Codespaces (Code → Codespaces → Create) and run `make quickstart` there.
 
 When your coding agent has tokens left over and nothing to do, token-tithe puts them to work:
 
@@ -35,12 +44,12 @@ backs off the moment a maintainer says no. See [docs/DONATION_POLICY.md](docs/DO
 
 ## Quickstart (one command)
 
-You need: macOS or Linux, `git`, and a GitHub account. The script checks for everything
-else (Python ≥ 3.11 or `uv`, the GitHub CLI, Claude Code CLI, Docker) and offers to install
-what's missing — it asks before every install.
+You need: macOS or Linux, `git`, the GitHub CLI signed in (`gh auth login`), and access to
+this repo. The script checks for everything else (Python ≥ 3.11 or `uv`, your coding agent's
+CLI, Docker) and offers to install what's missing — it asks before every install and change.
 
 ```bash
-gh repo clone JazibAli360/token-tithe && cd token-tithe   # or: git clone https://github.com/JazibAli360/token-tithe.git
+gh repo clone JazibAli360/token-tithe && cd token-tithe
 make quickstart
 ```
 
@@ -48,25 +57,31 @@ make quickstart
 
 1. check/install prerequisites,
 2. install token-tithe into `./.venv` (your system Python is never touched),
-3. sign you in to GitHub via `gh auth login` if needed,
-4. set the commit identity in `config/policy.yaml` to *your* GitHub noreply address,
-5. run the full pipeline offline against fixture repos (`make simulate`) and `donate doctor`,
-6. print exactly what to run next.
+3. pick your coding agent (Claude Code, Codex or Aider) and check it's signed in,
+4. sign you in to GitHub if needed,
+5. save *your* commit identity (GitHub noreply address) and create + register a dedicated
+   commit-signing key,
+6. build the Docker sandbox image that isolates other repos' code from your machine,
+7. run the full pipeline offline against fixture repos (`make simulate`) and `donate doctor`,
+8. print a summary: what passed, what needs you (sign-ins, one shell-profile line), what's next.
 
-It is safe to re-run, opens nothing on GitHub, and stores no tokens. Then:
+It is safe to re-run, opens nothing on GitHub, and stores no tokens. Your settings go to
+`config/policy.local.yaml` / `config/repos.local.yaml` (gitignored, merged over the shared
+defaults), so **`make update`** always pulls cleanly. Then:
 
 ```bash
-export GITHUB_TOKEN=$(gh auth token)
+export GITHUB_TOKEN=$(gh auth token)       # or a classic token with only `public_repo` (safer — docs/SAFETY.md)
 .venv/bin/donate discover --dry-run        # what's out there (read-only)
 .venv/bin/donate run                       # review mode: proposals go to state/review/, nothing is opened
 .venv/bin/donate review                    # read the proposals
 .venv/bin/donate review --open 1 --live    # approve one: opens exactly one disclosed PR
 ```
 
-Agents: `./scripts/quickstart.sh --yes --agent codex` (or `claude`, `aider`) runs without
-prompts once the human has OK'd installs; the full agent protocol is
-[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md). Afterwards, open the folder in Claude Code, Codex
-or any agent and say *"run a donation round"* — it dry-runs and shows you the plan first.
+In Claude Code, the same flow is three commands: **`/donate`** (dry-run, show the plan, run on
+your OK), **`/proposals`** (review the queue with diffs), **`/donate-status`** (PRs, outcomes,
+tokens). Other agents: say *"run a donation round"* — [AGENTS.md](AGENTS.md) tells them how.
+Agents setting up from scratch use `./scripts/quickstart.sh --yes --agent <name>` after the
+human's OK; the protocol is [docs/AGENT_SETUP.md](docs/AGENT_SETUP.md).
 
 Want to try it without touching GitHub at all? Run `make simulate`. It runs the whole
 pipeline against fixture repos that ship in `eval/fixtures/`.
@@ -79,6 +94,8 @@ Full first-run walkthrough: [docs/ONBOARDING.md](docs/ONBOARDING.md).
 |---|---|
 | Dry-run unless `--live` | on |
 | Review queue unless `trust: true` in `config/policy.yaml` | on |
+| Repo code never sees your tokens (Docker sandbox, or scrubbed env without Docker) | on |
+| Claude Code asks before any `--live` or GitHub write | on |
 | Confidence gate | 70/100 |
 | Rate limits | 3 PRs/repo/30 days · 5/day · 1 comment per issue ever |
 | Sandbox for live agent and test runs | Docker, no network by default |
@@ -116,6 +133,7 @@ lives in a self-contained folder. `donate doctor` fails if anything strays onto 
 | `docs/` | all documentation, `CONTRIBUTING.md`, the build spec in `docs/spec/` | ✅ |
 | `container/` | `Dockerfile` (+ its `.dockerignore`) | ✅ |
 | `scripts/` | `quickstart.sh`: one-command first-time setup | ✅ |
+| `config/*.local.yaml` | **your** settings over the shared defaults (identity, budget, blocklist) | ❌ |
 | `.github/ .devcontainer/ .claude/ .cursor/ .gemini/` | tool-convention config | ✅ |
 | `state/` | **all** mutable run state: ledger, review queue, handover, reports, worktrees. Delete to reset | ❌ |
 | `.venv/` | in-repo virtualenv from `make setup` | ❌ |

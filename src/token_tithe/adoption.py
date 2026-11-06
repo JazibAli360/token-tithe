@@ -14,9 +14,10 @@ from collections import Counter
 from datetime import UTC, datetime
 from pathlib import Path
 
-from token_tithe import paths
+from token_tithe import local_config, paths
 from token_tithe.etiquette import Etiquette
 from token_tithe.github_api import GitHubAPI
+from token_tithe.policy import load_repos
 
 CONVENTIONAL = re.compile(
     r"^(feat|fix|docs|test|tests|chore|refactor|perf|ci|build|style)(\(.+\))?!?:"
@@ -70,16 +71,10 @@ def adopt(api: GitHubAPI, repo: str, etiquette: Etiquette, repos_file: Path | No
 
 
 def _add_adopted(repo: str, repos_file: Path) -> None:
-    text = repos_file.read_text(encoding="utf-8")
-    if re.search(rf"^\s*-\s*{re.escape(repo)}\s*$", text, re.M | re.I):
+    """Register in your repos.local.yaml overlay; a repo already adopted anywhere is left alone."""
+    if any(r.lower() == repo.lower() for r in load_repos(repos_file).adopted):
         return
-    if re.search(r"^adopted:\s*\[\]\s*$", text, re.M):
-        text = re.sub(r"^adopted:\s*\[\]\s*$", f"adopted:\n  - {repo}", text, count=1, flags=re.M)
-    elif re.search(r"^adopted:\s*$", text, re.M):
-        text = re.sub(r"^(adopted:\s*\n)", rf"\g<1>  - {repo}\n", text, count=1, flags=re.M)
-    else:
-        text = text.rstrip("\n") + f"\n\nadopted:\n  - {repo}\n"
-    repos_file.write_text(text, encoding="utf-8")
+    local_config.append_item(repos_file, "adopted", repo)
 
 
 def conventions_for(repo: str) -> str:

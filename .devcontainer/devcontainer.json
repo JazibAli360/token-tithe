@@ -5,9 +5,15 @@
   "workspaceMount": "source=${localWorkspaceFolder},target=/app,type=bind",
   "overrideCommand": true,
   "remoteUser": "tithe",
+  "features": {
+    "ghcr.io/devcontainers/features/node:1": {},
+    "ghcr.io/devcontainers/features/docker-in-docker:2": {}
+  },
   "containerEnv": { "GITHUB_TOKEN": "${localEnv:GITHUB_TOKEN}" },
-  "postCreateCommand": "make setup",
+  "postCreateCommand": "./scripts/quickstart.sh < /dev/null || true",
+  "postAttachCommand": "echo 'token-tithe: run  make quickstart  to finish setup (it asks before each step).'",
   "customizations": {
+    "codespaces": { "openFiles": ["README.md"] },
     "vscode": { "extensions": ["ms-python.python", "charliermarsh.ruff"] }
   }
 }

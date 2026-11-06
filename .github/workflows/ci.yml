@@ -1,7 +1,11 @@
 name: ci
 on:
   push:
+    branches: [main]
   pull_request:
+
+permissions:
+  contents: read
 
 jobs:
   check:
@@ -22,3 +26,13 @@ jobs:
       - run: make simulate
       - name: eval (fast subset)
         run: .venv/bin/python eval/run_eval.py --fast
+
+  quickstart:                  # a fresh Linux user's first command, non-interactive (no TTY)
+    runs-on: ubuntu-latest
+    env:
+      NO_COLOR: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - run: ./scripts/quickstart.sh < /dev/null
+      - name: shared config untouched
+        run: git diff --exit-code -- config/ && test ! -e config/policy.local.yaml

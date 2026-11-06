@@ -8,4 +8,6 @@ __pycache__/
 build/
 dist/
 .env
+# per-user config overlays (identity, budget, blocklist): never shared
+config/*.local.yaml
 .DS_Store

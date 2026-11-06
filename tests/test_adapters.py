@@ -451,3 +451,27 @@ def test_pinned_rust_toolchain_is_installed_into_the_worktree(tmp_path, monkeypa
     )
     DockerRunner(P.load_policy()).run(["cargo", "test"], tmp_path, "test", 10)
     assert f"RUSTUP_HOME=/work/{sandbox.RUSTUP_DIR}" in seen[0]
+
+
+def test_host_runs_get_no_secrets(monkeypatch, tmp_path):
+    """A target repo's test script on the host must not see the operator's tokens or logins."""
+    import json as _json
+    import sys as _sys
+
+    for k, v in {"GITHUB_TOKEN": "g", "GH_TOKEN": "g", "ANTHROPIC_API_KEY": "a",
+                 "OPENAI_API_KEY": "o", "SSH_AUTH_SOCK": "/s", "TITHE_SIGNING_KEY": "k",
+                 "AWS_SECRET_ACCESS_KEY": "w", "MY_HARMLESS": "keep"}.items():  # fmt: skip
+        monkeypatch.setenv(k, v)
+    dump = "import json, os; print(json.dumps(dict(os.environ)))"
+    r = LocalRunner().run([_sys.executable, "-c", dump], tmp_path, "test", 30)
+    env = _json.loads(r.stdout)
+    leaked = {"GITHUB_TOKEN", "GH_TOKEN", "ANTHROPIC_API_KEY", "OPENAI_API_KEY", "SSH_AUTH_SOCK",
+              "TITHE_SIGNING_KEY", "AWS_SECRET_ACCESS_KEY"} & env.keys()  # fmt: skip
+    assert not leaked
+    assert env["MY_HARMLESS"] == "keep" and env["PATH"]
+    assert env["GIT_CONFIG_KEY_0"] == "credential.helper" and env["GIT_CONFIG_VALUE_0"] == ""
+    # the agent gets back exactly what its adapter passes through, nothing more
+    r = LocalRunner().run([_sys.executable, "-c", dump], tmp_path, "agent", 30,
+                          env={"ANTHROPIC_API_KEY": "a"})  # fmt: skip
+    env = _json.loads(r.stdout)
+    assert env["ANTHROPIC_API_KEY"] == "a" and "GITHUB_TOKEN" not in env

@@ -3,7 +3,7 @@
 Read order for any session, human or agent: `state/HANDOVER.md` (if it exists) → this repo's
 `brain/BRAIN.md`. Then follow the steps below in order. Each step is safe on its own.
 
-> **Shortcut:** `make quickstart` does steps 0–4 for you (asks before installing anything).
+> **Shortcut:** `make quickstart` does steps 0–4 and 7 for you (asks before installing anything).
 > Read on for what each step does, or to do them by hand. AI agents: [AGENT_SETUP.md](AGENT_SETUP.md).
 
 ## 0. Prerequisites
@@ -77,8 +77,14 @@ Read every diff as if you were the maintainer. Would you merge it in five minute
 
 ## 7. Set up the donation identity (R18)
 
-Use a dedicated GitHub account (bio: "token-tithe donation account operated by @you").
-Add an SSH signing key to it, then in `config/policy.yaml`:
+`make quickstart` does this: it saves your GitHub noreply identity to
+`config/policy.local.yaml`, creates `~/.ssh/token_tithe_signing`, and registers it on GitHub
+as a signing key (if gh lacks the permission it tells you to run
+`gh auth refresh -h github.com -s admin:ssh_signing_key` first). You add one line to your
+shell profile: `export TITHE_SIGNING_KEY=$HOME/.ssh/token_tithe_signing.pub`.
+
+By hand, or for a dedicated bot account (bio: "token-tithe donation account operated by
+@you" — the cleanest option), put this in `config/policy.local.yaml`:
 
 ```yaml
 signing:
@@ -86,13 +92,13 @@ signing:
   committer_email: "12345+tithe-bot@users.noreply.github.com"
 ```
 
-and `export TITHE_SIGNING_KEY=~/.ssh/tithe_signing.pub`. `donate doctor` signs a throwaway
-commit to prove it works.
+Never edit `config/policy.yaml` for personal values — it's shared. `donate doctor` signs a
+throwaway commit to prove the key works.
 
 ## 8. First live PR — one, by hand
 
 ```bash
-open -a Docker && make sandbox-image    # R16: live runs refuse without the sandbox
+open -a Docker && make sandbox-image    # R16 (quickstart offers this); live runs refuse without it
 .venv/bin/donate review --open 1 --live
 ```
 
@@ -104,6 +110,11 @@ Watch your notifications. Respond to the maintainer yourself or with
 Weekly: `donate feedback`, `donate learn` (+ `--apply` after reading), `donate report`.
 Monthly: `donate journal`, `donate optimize`. Only after several weeks of reviewed runs with
 a good merge rate consider `trust: true` and a configured `second_review.agent`.
+
+## Updating
+
+`make update` pulls the latest version, reinstalls and runs doctor. Your `config/*.local.yaml`
+and `state/` are never touched.
 
 ## Moving the engine
 

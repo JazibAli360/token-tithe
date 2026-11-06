@@ -9,12 +9,11 @@ config/policy.yaml changes only with --apply. An agent must have passed eval to 
 from __future__ import annotations
 
 import json
-import re
 from collections import defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from token_tithe import paths
+from token_tithe import local_config, paths
 from token_tithe.evaluation import eval_passed
 from token_tithe.ledger import Ledger
 from token_tithe.policy import Policy, load_policy
@@ -100,16 +99,10 @@ def write_proposal(proposal: dict) -> Path:
 
 
 def apply(proposal: dict, policy_file: Path = paths.POLICY_FILE) -> None:
-    """Rewrite only the `by_language:` line of the routing block, keeping comments intact."""
-    text = policy_file.read_text(encoding="utf-8")
-    mapping = proposal["by_language"]
-    inline = "{" + ", ".join(f"{k}: {v}" for k, v in sorted(mapping.items())) + "}"
-    new, n = re.subn(
-        r"^(\s*by_language:\s*)(\{[^}\n]*\})", rf"\g<1>{inline}", text, count=1, flags=re.M
+    """Write routing.by_language to your policy.local.yaml overlay; shared policy.yaml untouched."""
+    local_config.set_value(
+        policy_file, "routing.by_language", dict(sorted(proposal["by_language"].items()))
     )
-    if n != 1:
-        raise ValueError("could not find `routing.by_language: {...}` in policy.yaml")
-    policy_file.write_text(new, encoding="utf-8")
     load_policy(policy_file)  # must still validate
 
 

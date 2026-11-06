@@ -11,13 +11,17 @@ every install/test/lint run happens in a throwaway Docker container:
   hosts by itself — route through an egress proxy for that, see docs/SAFETY.md)
 - all capabilities dropped, no-new-privileges, CPU/memory/pids limits, non-root user
 
-`LocalRunner` (no isolation) is allowed for simulate/eval (fixtures are trusted, in-repo) and
-for live runs only when policy sets `allow_unsandboxed: true` — which is logged loudly.
+`LocalRunner` (no isolation) is allowed for simulate/eval (fixtures are trusted, in-repo),
+for review mode when Docker is unavailable, and for live runs only when policy sets
+`allow_unsandboxed: true` — which is logged loudly. Whatever runs on the host gets a scrubbed
+environment (`host_env`): no tokens, keys or SSH agent, and no gh/git credential helpers, so a
+target repo's test script cannot reach the operator's GitHub account or API keys.
 """
 
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -26,6 +30,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, Protocol
 
+from token_tithe import paths
 from token_tithe.policy import Policy
 
 Purpose = Literal["agent", "install", "test"]
@@ -96,6 +101,36 @@ def _execute(argv, cwd, timeout, env, stdin) -> RunResult:
         return RunResult(127, "", str(e))
 
 
+# Env var names that carry credentials. Host runs drop them; the agent gets back only the
+# keys its adapter lists in `env_passthrough` (passed explicitly as `env`).
+SECRET_ENV_RE = re.compile(
+    r"TOKEN|SECRET|PASSW|API_?KEY|PRIVATE_?KEY|ACCESS_?KEY|CREDENTIAL|SESSION|COOKIE|^SSH_AUTH_SOCK$"
+    r"|^TITHE_|^AWS_|^AZURE_|^GOOGLE_APPLICATION|^NPM_CONFIG__AUTH|^NODE_AUTH",
+    re.IGNORECASE,
+)
+
+
+def host_env(extra: dict[str, str] | None = None) -> dict[str, str]:
+    """Environment for anything that runs on the host: secrets removed, gh/git logins hidden."""
+    env = {k: v for k, v in os.environ.items() if not SECRET_ENV_RE.search(k)}
+    empty_gh = paths.STATE / "host-gh-config"  # an empty gh config: `gh` sees no login
+    empty_gh.mkdir(parents=True, exist_ok=True)
+    env.update(
+        {
+            "GH_CONFIG_DIR": str(empty_gh),
+            "GIT_TERMINAL_PROMPT": "0",
+            # an empty credential.helper resets the list: no keychain-stored git passwords
+            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_KEY_0": "credential.helper",
+            "GIT_CONFIG_VALUE_0": "",
+            "PYTHONDONTWRITEBYTECODE": "1",
+            "NO_COLOR": "1",
+        }
+    )
+    env.update(extra or {})
+    return env
+
+
 class LocalRunner:
     """No isolation. `python` in argv[0] maps to the engine interpreter (fixtures need no deps)."""
 
@@ -105,9 +140,7 @@ class LocalRunner:
     def run(self, argv, cwd, purpose, timeout, env=None, stdin=None) -> RunResult:
         if argv and argv[0] in ("python", "python3", "{python}"):
             argv = [sys.executable, *argv[1:]]
-        base = {k: v for k, v in os.environ.items() if not k.startswith("TITHE_")}
-        full_env = {**base, "PYTHONDONTWRITEBYTECODE": "1", "NO_COLOR": "1", **(env or {})}
-        return _execute(argv, cwd, timeout, full_env, stdin)
+        return _execute(argv, cwd, timeout, host_env(env), stdin)
 
 
 class DockerRunner:

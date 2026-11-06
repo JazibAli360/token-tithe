@@ -10,10 +10,12 @@
 | Rate limits (R4) | `publish.race_recheck` | 3/repo/30 days · 5/day · 1 comment/issue |
 | Diff limit (R8) | executor verify | < 400 lines |
 | Budget guard (R10) | `budget.BudgetGuard` | `max_tokens_per_run` |
-| Task timeout (D3) | executor | 45 minutes |
+| Task timeout (D3) | executor | 90 minutes |
 | Kill switch (R12) | `pipeline.check_halt` | `donate halt` / `donate resume` |
 | Immediate stop (B3) | `handover.HandoverSession` | `donate stop`, SIGINT, SIGTERM |
-| Sandbox (R16) | `sandbox.select_runner` | Docker required for `--live` |
+| Sandbox (R16) | `sandbox.select_runner` | Docker required for `--live`; preferred in review mode |
+| Host env scrub | `sandbox.host_env` | anything run on the host gets no tokens, keys or gh/git logins |
+| Claude Code guard | `.claude/settings.json` | `--live`, `gh pr create/comment`, `gh api -X` always ask first |
 | Public repos only (R17) | `GitHubAPI.ensure_public` | always |
 | Signed commits (R18) | executor / review | required |
 | One agent per task (R13) | adapter argv | sub-agent tools disallowed |
@@ -37,8 +39,15 @@ HALT wins over everything: while it is set, nothing runs, including resume's con
 and lint command runs in a fresh `docker run --rm` with only the worktree mounted, all
 capabilities dropped, `no-new-privileges`, CPU/memory/pid limits, a non-root user, and
 **`--network none`** for tests and lint. Dependency caches live inside the worktree so they
-survive between containers. Locally (simulate/eval) only trusted in-repo fixtures run
-unsandboxed, and the engine never installs dependencies into the host.
+survive between containers. Review mode uses the same containers whenever Docker is running.
+
+**Without Docker** (review mode only), install/test/lint run on your machine. They get a
+scrubbed environment (`sandbox.host_env`): every variable that looks like a token, key,
+password or session is dropped (`GITHUB_TOKEN`, `*_API_KEY`, `SSH_AUTH_SOCK`, …), `gh` sees an
+empty config and git's credential helpers are switched off, so a hostile test script cannot
+use your GitHub account or API keys. It can still read your files — **keep Docker running**
+for anything beyond a first look. The host agent (review mode with a keychain login) gets
+back only the variables its adapter lists in `env_passthrough`.
 
 **2. Prompt injection.** Issue text, comments and repository files are attacker-controllable
 and are read by the agent. Defences, in depth:
@@ -60,6 +69,14 @@ an allowlist of your model API host and the package registries in `install_allow
 never appears on argv, in a URL, or on disk. The ledger refuses secret-looking lines. CLI
 tracebacks don't print local variables. `donate doctor` scans the repo and `state/` for key
 patterns and for the literal values of your secret env vars.
+
+**GitHub token.** `gh auth token` is convenient but broad (it usually carries `repo`, which
+reaches your private repos, plus `workflow` and `gist`). The engine needs only a **classic**
+token with the single scope **`public_repo`**: fork, push to the fork and open PRs on public
+repos (R17 keeps it public-only anyway). Create one at github.com/settings/tokens/new with
+just that box ticked and `export GITHUB_TOKEN=…` in your shell profile. Fine-grained tokens
+cannot open PRs on repositories you don't own, so they don't work here. `donate doctor`
+warns when the token has more than it needs.
 
 **5. Leaked secrets in target repos (D4).** The clone is scanned before any agent runs; a hit
 skips the repo entirely and the secret is never quoted (only its kind is recorded).

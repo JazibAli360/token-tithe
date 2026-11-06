@@ -1,4 +1,6 @@
 # token-tithe policy. Every limit the engine enforces lives here.
+# These are the SHARED defaults. Put your own settings in config/policy.local.yaml (gitignored,
+# same keys, merged on top) — then `git pull` never conflicts. `make quickstart` creates it.
 # Loaded and strictly validated by src/token_tithe/policy.py: unknown keys and wrong types are errors.
 schema_version: 1
 
@@ -8,7 +10,7 @@ schema_version: 1
 trust: false
 
 budget:                       # R10 / R15 / A4
-  max_tokens_per_run: 100000000 # "there is no budget" — cap set high; R10 guard stays
+  max_tokens_per_run: 1000000 # hard stop, even mid-task; effective = min(this, real quota)
   min_viable_tokens: 60000    # below this a run attempts nothing and says so
   default_task_tokens:        # fallback cost estimates until the ledger has real averages
     issue_fix: 150000
@@ -34,26 +36,26 @@ licenses:                     # R3: SPDX ids
 discovery:                    # §4
   languages: [python, javascript, typescript, go, rust]
   labels: [good first issue, help wanted]
-  min_stars: 10000              # famous repos with a sizable community
-  max_stars: 100000
+  min_stars: 50                 # raise both for bigger, busier projects (e.g. 10000 / 100000)
+  max_stars: 5000
   pushed_within_days: 60
   per_query_limit: 30
   exclude_recent_repo_days: 30   # repos we touched within this window are skipped
   claim_window_days: 14          # skip issues a contributor claimed in a comment this recently (R9)
-  # prioritize projects that help the world and creative open source.
+  # Prioritize projects that help the world and creative open source.
   # Repos with these GitHub topics are searched directly and get up to +20 in triage. Each topic
   # costs ~3 search calls (GitHub allows 30/min), so keep the list short.
   impact_topics: [climate-change, sustainability, accessibility, healthcare, education,
                   humanitarian, open-science, civic-tech, creative-coding, generative-art,
                   music, game-development]
   impact_repos_per_topic: 5
-  # also search bug-labelled issues, but only in the impact-topic repos above
+  # Also search bug-labelled issues, but only in the impact-topic repos above
   # (≥ min_stars); a global bug-label search would be flooded by small repos.
   impact_labels: [bug, "type: bug", "Type: Bug", "kind/bug", "type/bug", "🐛 bug", "confirmed bug"]
 
 limits:
   max_diff_lines: 400          # R8
-  task_timeout_minutes: 90     # D3 — browser test suites (Tone.js) need longer
+  task_timeout_minutes: 90     # D3 — browser test suites need longer than 45
   max_tasks_per_run: 3
 
 subagents:                     # R13
@@ -80,15 +82,15 @@ sandbox:                       # R16 / D1
                                # own CI uses on runners without a GPU/display, never test skips
     {}                         # e.g. owner/name: {SOME_CI_SWITCH: "no"}
   repo_extra_deps:             # per-repo extra pip packages: only optional deps the repo declares
-    tBuLi/kingdon: [numba]     # its `arrays` group; torch/jax left out (multi-GB via pip)
+    {}                         # e.g. owner/name: [numba]
 
 signing:                       # R18 / D7 — the dedicated donation identity
   required: true
   format: ssh                  # ssh | openpgp
-  committer_name: ""           # set by `make quickstart`, or by hand (docs/ONBOARDING.md §7)
+  committer_name: ""           # yours goes in config/policy.local.yaml (`make quickstart` sets it)
   committer_email: ""          # e.g. 12345+you@users.noreply.github.com
   signing_key_env: TITHE_SIGNING_KEY   # env var holding the key path or key id — never the key itself
-  # sign off (Developer Certificate of Origin) as the committer above
+  # Sign off (Developer Certificate of Origin) as the committer above
   # on repos that require it (DCO file, .github/dco.yml, or CONTRIBUTING asks for Signed-off-by).
   dco_signoff: true
 

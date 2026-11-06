@@ -11,8 +11,15 @@ from token_tithe import policy as P
 def config_copy(tmp_path: Path) -> Path:
     """A writable copy of config/ for tests that mutate policy files."""
     dst = tmp_path / "config"
-    shutil.copytree(paths.CONFIG, dst)
+    shutil.copytree(paths.CONFIG, dst, ignore=shutil.ignore_patterns("*.local.yaml"))
     return dst
+
+
+@pytest.fixture(autouse=True)
+def shared_config_only(monkeypatch):
+    """Tests see the shared config/ defaults, never the developer's *.local.yaml overlays."""
+    monkeypatch.setenv("TITHE_NO_LOCAL_CONFIG", "1")
+    monkeypatch.delenv("TITHE_SIGNING_KEY", raising=False)  # the operator's key must not leak in
 
 
 @pytest.fixture(autouse=True)
