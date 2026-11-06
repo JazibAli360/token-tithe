@@ -5,3 +5,4 @@ alwaysApply: true
 
 Follow `AGENTS.md` at the repo root. Its hard rules (R1–R19) are non-negotiable. If
 `state/HANDOVER.md` exists, read it first and resume from it, then read `brain/BRAIN.md`.
+Fresh clone with no `.venv/`? Set it up by following `docs/AGENT_SETUP.md`.

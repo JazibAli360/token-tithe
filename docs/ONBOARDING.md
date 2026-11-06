@@ -4,7 +4,7 @@ Read order for any session, human or agent: `state/HANDOVER.md` (if it exists) â
 `brain/BRAIN.md`. Then follow the steps below in order. Each step is safe on its own.
 
 > **Shortcut:** `make quickstart` does steps 0â€“4 for you (asks before installing anything).
-> Read on for what each step does, or to do them by hand.
+> Read on for what each step does, or to do them by hand. AI agents: [AGENT_SETUP.md](AGENT_SETUP.md).
 
 ## 0. Prerequisites
 

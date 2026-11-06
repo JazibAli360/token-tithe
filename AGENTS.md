@@ -8,6 +8,13 @@ Cursor, Aider, Windsurf, opencode, Gemini CLI, Copilot, Jules, Amp, and others.
 from it, never restart from scratch; 2) `brain/BRAIN.md` (what do we know?). Handover is volatile
 per-run state; the Brain is durable, committed knowledge. They never mix.
 
+## 0. First time here? (fresh clone, no `.venv/`)
+
+If `.venv/bin/donate` doesn't exist yet, your human wants it set up: follow
+[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) — ask once for consent, run
+`./scripts/quickstart.sh [--yes] --agent <you>`, relay its Summary, and hand any sign-in
+or password step to the human. Never pass `--live` during setup.
+
 ## 1. What this repo is
 
 A self-hosted engine that donates leftover AI-agent tokens to open source. When tokens

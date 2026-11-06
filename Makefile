@@ -17,7 +17,7 @@ help:  ## list targets
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk -F':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
 
 quickstart:  ## first time? start here: prereqs, install, sign-in, identity, self-test
-	./scripts/quickstart.sh
+	./scripts/quickstart.sh $(ARGS)
 
 $(PY):
 ifneq ($(HOST_PY),)

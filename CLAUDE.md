@@ -11,6 +11,13 @@ per-run state; the Brain is durable, committed knowledge. They never mix.
 AGENTS.md holds the same rules for every other agent plus the adapter contract. If the two
 files ever disagree, the stricter reading wins.
 
+## First time here? (fresh clone, no `.venv/`)
+
+If `.venv/bin/donate` doesn't exist yet, your human wants it set up: follow
+[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md) — ask once for consent, run
+`./scripts/quickstart.sh [--yes] --agent claude`, relay its Summary, and hand any sign-in
+or password step to the human. Never pass `--live` during setup.
+
 ## Hard rules (non-negotiable)
 
 1. **R1** PRs only. Never push to main/master, never merge, never force-push another's

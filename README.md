@@ -2,6 +2,11 @@
 
 **Donate your leftover AI-agent tokens to open source, without wasting a maintainer's time.**
 
+> **Setting up with an AI agent?** Give it this repo's link and say:
+> *"Set up github.com/JazibAli360/token-tithe by following docs/AGENT_SETUP.md, then show me
+> a dry-run."* Works with Claude Code, Codex, Cursor, Gemini CLI, Copilot, Aider and others —
+> they all read [AGENTS.md](AGENTS.md). **By hand?** `make quickstart` (see below).
+
 When your coding agent has tokens left over and nothing to do, token-tithe puts them to work:
 
 1. **Discover**: search GitHub for permissively licensed, active repos with unclaimed
@@ -58,8 +63,10 @@ export GITHUB_TOKEN=$(gh auth token)
 .venv/bin/donate review --open 1 --live    # approve one: opens exactly one disclosed PR
 ```
 
-Using Claude Code? Open the folder and say *"run a donation round"* — `CLAUDE.md` is its
-operating manual, and it will dry-run and show you the plan first.
+Agents: `./scripts/quickstart.sh --yes --agent codex` (or `claude`, `aider`) runs without
+prompts once the human has OK'd installs; the full agent protocol is
+[docs/AGENT_SETUP.md](docs/AGENT_SETUP.md). Afterwards, open the folder in Claude Code, Codex
+or any agent and say *"run a donation round"* — it dry-runs and shows you the plan first.
 
 Want to try it without touching GitHub at all? Run `make simulate`. It runs the whole
 pipeline against fixture repos that ship in `eval/fixtures/`.
@@ -117,6 +124,7 @@ lives in a self-contained folder. `donate doctor` fails if anything strays onto 
 
 | Doc | |
 |---|---|
+| [AGENT_SETUP](docs/AGENT_SETUP.md) | an AI agent sets this up from the repo link |
 | [ONBOARDING](docs/ONBOARDING.md) | first run, end to end |
 | [ARCHITECTURE](docs/ARCHITECTURE.md) | modules, data flow, adapter layer |
 | [WORKFLOW](docs/WORKFLOW.md) | run lifecycle, review mode, feedback loop |
