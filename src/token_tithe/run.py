@@ -99,6 +99,7 @@ def donate_run(
                 recent_repos=ledger.recent_repos(policy.discovery.exclude_recent_repo_days),
                 attempted=attempted, history=ledger.history(), picked=list(only or ()),
                 follow_ups=list(follow_ups or ()),
+                broken_repos=ledger.broken_env_repos(policy.discovery.broken_env_retry_days),
             )  # fmt: skip
             # a follow-up names our PR; the task is its source issue
             wanted |= {c.key.lower() for c in queue.discovery.candidates if c.follow_up_pr}

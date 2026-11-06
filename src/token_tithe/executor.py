@@ -329,6 +329,18 @@ class Executor:
                     raise Abandon(f"test environment is broken before any change: `{broken[0]}` "
                                   "cannot load its dependencies or build; not starting (R7)",
                                   output=self._baseline_output[broken[0]])  # fmt: skip
+                # a test command that already fails would abandon the change at verify anyway
+                # ("tests already failed before the change"): stop now, before agent tokens
+                # (Nov 2026: kingdon#152 + egui#8829/#8833 burned ~10M tokens this way).
+                # ci_repro exists to fix a failing suite, so it is the one type that may start.
+                if dtype.output != "comment" and dtype.name != "ci_repro" and (failing := [
+                    k for k in map(" ".join, profile.test)
+                    if baseline.get(k) is False
+                    and k not in self._baseline_missing
+                ]):  # fmt: skip
+                    raise Abandon(f"tests already fail before any change: `{failing[0]}`; "
+                                  "the environment cannot verify a fix, not starting (R7)",
+                                  output=_tail(self._baseline_output[failing[0]]))  # fmt: skip
                 self._mark(out, "baseline", "invoke", deadline)
 
                 # last check before spending agent tokens: someone may have opened a PR
@@ -475,6 +487,7 @@ class Executor:
     def _run_all(self, cmds: list[list[str]], worktree: Path, deadline: float) -> dict[str, bool]:
         results = {}
         self._baseline_output: dict[str, str] = {}  # why a baseline command failed, as evidence
+        self._baseline_missing: set[str] = set()  # failed only because the program is absent
         for cmd in cmds:
             r = self.runner.run(
                 cmd, worktree, "test", self._remaining(deadline), env=getattr(self, "_repo_env", {})
@@ -484,6 +497,8 @@ class Executor:
             results[" ".join(cmd)] = r.ok
             if not r.ok:
                 self._baseline_output[" ".join(cmd)] = r.output
+                if missing_program(r.code, r.output):  # verify reports it as NOT RUN instead
+                    self._baseline_missing.add(" ".join(cmd))
         return results
 
     def _write_brief(self, t: Triaged, dtype: DonationType, worktree: Path, profile: Profile,

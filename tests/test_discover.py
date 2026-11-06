@@ -50,6 +50,17 @@ def test_blocklist_recent_and_attempted(api, config_copy):
     assert "already attempted" in s["tithe-fixtures/js-doc-gap#31"]
 
 
+def test_repo_with_broken_tests_is_skipped_unless_picked(api):
+    broken = {"tithe-fixtures/py-math-bug": "2026-11-01"}
+    s = skipped(discover(api, P.load_policy(), P.load_repos(), broken_repos=broken))
+    assert (
+        "tests already failed before our change on 2026-11-01" in s["tithe-fixtures/py-math-bug#12"]
+    )
+    res = discover(api, P.load_policy(), P.load_repos(), broken_repos=broken,
+                   picked=["tithe-fixtures/py-math-bug#12"])  # fmt: skip
+    assert keys(res) == {"tithe-fixtures/py-math-bug#12"}
+
+
 def test_license_and_stars_filters(api, config_copy):
     f = config_copy / "policy.yaml"
     data = yaml.safe_load(f.read_text())

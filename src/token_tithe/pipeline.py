@@ -42,6 +42,7 @@ def build_queue(
     now: datetime | None = None,
     picked: Iterable[str] = (),
     follow_ups: Iterable[str] = (),
+    broken_repos: Mapping[str, str] | None = None,
 ) -> QueueResult:
     check_halt()
     now = now or datetime.now(UTC)
@@ -51,7 +52,9 @@ def build_queue(
         now=now,
         claim_window_days=policy.discovery.claim_window_days,
     )
-    disc = discover(api, policy, repos_cfg, recent_repos, attempted, now, picked, follow_ups)
+    disc = discover(
+        api, policy, repos_cfg, recent_repos, attempted, now, picked, follow_ups, broken_repos
+    )
     res = QueueResult(disc)
 
     test_dirs: dict[str, bool] = {}

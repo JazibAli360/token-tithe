@@ -621,13 +621,38 @@ def test_r7_abandon_keeps_failing_output_and_diff():
     assert not list(paths.WORKTREES.rglob("stats.py")), "abandoned worktree still removed"
 
 
-def test_tests_failing_before_the_change_are_blamed_on_the_environment():
+def test_tests_failing_before_the_change_stop_before_the_agent():
+    """A suite that already fails would abandon the change at verify: don't spend the agent."""
+    api = GitHubAPI.fixture()
+    calls = []
+
+    class Recording(ReferenceAdapter):
+        def invoke(self, *a, **kw):
+            calls.append(1)
+            return super().invoke(*a, **kw)
+
+    ex, _ = make(api, P.load_policy(), adapter=Recording(FX))
+    ex.runner = FailingTestsRunner()
+    out = ex.run_task(triaged(api, MATH))
+    assert out.outcome == "abandoned" and "already fail before any change" in out.reason
+    assert calls == [] and out.tokens == 0
+    assert "libfoo.so" in evidence(out, "output.txt")
+    assert Ledger().broken_env_repos(14) == {MATH: out_date()}
+
+
+def out_date():
+    from datetime import UTC, datetime
+
+    return datetime.now(UTC).date().isoformat()
+
+
+def test_ci_repro_may_start_on_a_failing_suite():
+    """ci_repro's job is the failing suite; it still runs and is judged at verify."""
     api = GitHubAPI.fixture()
     ex, _ = make(api, P.load_policy())
     ex.runner = FailingTestsRunner()
-    out = ex.run_task(triaged(api, MATH))
-    assert out.outcome == "abandoned" and "already failed before the change" in out.reason
-    assert "libfoo.so" in evidence(out, "output.txt")
+    out = ex.run_task(triaged(api, "tithe-fixtures/flaky-ci"))
+    assert "before any change" not in out.reason
 
 
 def test_evidence_withholds_secrets():

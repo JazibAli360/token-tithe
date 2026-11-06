@@ -8,6 +8,7 @@ before it reaches disk (R6).
 from __future__ import annotations
 
 import json
+import re
 from collections import Counter, defaultdict
 from collections.abc import Iterator
 from dataclasses import dataclass, field
@@ -16,6 +17,9 @@ from pathlib import Path
 
 from token_tithe import paths
 from token_tithe.secrets_scan import secret_kind
+
+# abandon reasons meaning the repo's own suite was broken before our change (executor)
+BROKEN_BASELINE = re.compile(r"before any change|already failed before the change")
 
 SCHEMA_VERSION = 1
 
@@ -114,6 +118,15 @@ class Ledger:
         return {
             str(e["repo"]) for e in self._since(days, now)
             if e["event"] in ("pr_opened", "comment_posted") and e.get("repo")
+        }  # fmt: skip
+
+    def broken_env_repos(self, days: float, now: datetime | None = None) -> dict[str, str]:
+        """repo -> date of a recent abandon because its tests failed before any change.
+        Other issues there would fail the same way until the environment changes."""
+        return {
+            str(e["repo"]).lower(): str(e["ts"])[:10] for e in self._since(days, now)
+            if e["event"] == "abandoned" and e.get("repo")
+            and BROKEN_BASELINE.search(str(e.get("reason", "")))
         }  # fmt: skip
 
     def attempted(self) -> set[str]:

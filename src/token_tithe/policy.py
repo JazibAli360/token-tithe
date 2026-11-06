@@ -58,6 +58,8 @@ class Discovery:
     per_query_limit: int
     exclude_recent_repo_days: int
     claim_window_days: int = 14
+    # skip a repo whose tests already failed before our change, for this many days
+    broken_env_retry_days: int = 14
     impact_topics: list[str] = field(default_factory=list)  # ranked up; also searched
     impact_repos_per_topic: int = 5
     # extra labels searched only in impact-topic repos (star-filtered), ORed into one query

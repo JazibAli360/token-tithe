@@ -42,6 +42,7 @@ discovery:                    # §4
   per_query_limit: 30
   exclude_recent_repo_days: 30   # repos we touched within this window are skipped
   claim_window_days: 14          # skip issues a contributor claimed in a comment this recently (R9)
+  broken_env_retry_days: 14      # skip repos whose tests failed before our change, this long
   # Prioritize projects that help the world and creative open source.
   # Repos with these GitHub topics are searched directly and get up to +20 in triage. Each topic
   # costs ~3 search calls (GitHub allows 30/min), so keep the list short.

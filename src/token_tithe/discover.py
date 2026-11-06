@@ -14,7 +14,7 @@ open-issue, recently-touched and already-attempted checks do not.
 from __future__ import annotations
 
 import re
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 
@@ -143,11 +143,13 @@ def discover(
     now: datetime | None = None,
     picked: Iterable[str] = (),
     follow_ups: Iterable[str] = (),
+    broken_repos: Mapping[str, str] | None = None,
 ) -> DiscoveryResult:
     """`recent_repos`: repos we touched inside the exclusion window (from the ledger).
     `attempted`: `owner/repo#N` keys already in the ledger. `picked`: operator-chosen
     `owner/repo#N` keys (`--only`), fetched directly instead of searched; every repo and
-    issue filter still applies to them."""
+    issue filter still applies to them. `broken_repos`: repo -> date its tests failed before
+    our change (ledger); skipped unless picked, since any task there would be abandoned."""
     now = now or datetime.now(UTC)
     d = policy.discovery
     res = DiscoveryResult()
@@ -200,6 +202,13 @@ def discover(
 
             reason = _repo_reason(api, policy, repos_cfg, repo, repo_meta,
                                   set() if follow else recent, now, bool(picked or follow))  # fmt: skip
+            if (
+                reason is None
+                and not (picked or follow)
+                and (since := (broken_repos or {}).get(repo.lower()))
+            ):
+                reason = (f"tests already failed before our change on {since}; retry after "
+                          f"{policy.discovery.broken_env_retry_days} days or pick it with --only")  # fmt: skip
             if reason is None:
                 reason = (_follow_up_reason(api, repo, issue) if follow
                           else _issue_reason(api, repo, issue, seen_keys))  # fmt: skip
