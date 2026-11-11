@@ -289,6 +289,13 @@ class Executor:
         self._repo_env = repo_env.get(c.repo.lower(), {})
         extra = {k.lower(): v for k, v in self.policy.sandbox.repo_extra_deps.items()}
         self._repo_extra_deps = list(extra.get(c.repo.lower(), []))
+        networked = {r.lower() for r in self.policy.sandbox.repo_test_network}
+        if hasattr(self.runner, "test_network"):
+            self.runner.test_network = "bridge" if c.repo.lower() in networked else None
+            if self.runner.test_network:
+                self.ledger.append("sandbox_relaxed", run_id=self.run_id, repo=c.repo,
+                                   issue=c.number, reason="test runs get network "
+                                   "(sandbox.repo_test_network)")  # fmt: skip
         worktree = self.work_root / self.run_id / f"{c.repo.replace('/', '__')}-{c.number}"
         branch = f"donate/{c.number}-{slug(c.title)}"
         if resume:
@@ -313,8 +320,15 @@ class Executor:
                                worktree=paths.rel(worktree), run_id=self.run_id)  # fmt: skip
                 self._mark(out, "clone", "gate", deadline)
 
-                if reason := gate(self.etiquette, c.repo, c.number, worktree):
+                fixtures_ok = c.repo.lower() in {
+                    r.lower() for r in self.policy.sandbox.repo_secret_fixtures
+                }
+                if reason := gate(self.etiquette, c.repo, c.number, worktree, fixtures_ok):
                     raise Abandon(reason, "rejected")
+                if fixtures_ok:
+                    self.ledger.append("sandbox_relaxed", run_id=self.run_id, repo=c.repo,
+                                       issue=c.number, reason="D4 ignores credential-like "
+                                       "strings in test files (sandbox.repo_secret_fixtures)")  # fmt: skip
                 self._mark(out, "gate", "baseline", deadline)
 
                 profile = detect(worktree)

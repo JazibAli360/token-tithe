@@ -152,12 +152,15 @@ class DockerRunner:
     def __init__(self, policy: Policy, docker: str = "docker"):
         self.policy = policy
         self.docker = docker
+        # set per task by the executor for repos in sandbox.repo_test_network
+        self.test_network: str | None = None
 
     def command(
         self, argv: list[str], cwd: Path, purpose: Purpose, env: dict[str, str] | None
     ) -> list[str]:
         sb = self.policy.sandbox
-        network = {"test": sb.network, "install": "bridge", "agent": sb.agent_network}[purpose]
+        test_network = self.test_network or sb.network
+        network = {"test": test_network, "install": "bridge", "agent": sb.agent_network}[purpose]
         cmd = [
             self.docker, "run", "--rm", "--init",
             "--network", network,

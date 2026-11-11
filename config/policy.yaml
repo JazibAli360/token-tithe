@@ -84,6 +84,10 @@ sandbox:                       # R16 / D1
     {}                         # e.g. owner/name: {SOME_CI_SWITCH: "no"}
   repo_extra_deps:             # per-repo extra pip packages: only optional deps the repo declares
     {}                         # e.g. owner/name: [numba]
+  repo_test_network: []        # repos whose suites cannot run offline: their test runs get network.
+                               # Weaker isolation, logged in the ledger each time; e.g. [owner/name]
+  repo_secret_fixtures: []     # repos whose test files hold fake credentials on purpose (secret
+                               # scanners): D4 ignores those test-file hits only; logged per task
 
 signing:                       # R18 / D7 — the dedicated donation identity
   required: true

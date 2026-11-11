@@ -177,6 +177,10 @@ def test_docker_command_isolation(tmp_path, monkeypatch):
     assert "ANTHROPIC_API_KEY" in agent_cmd and not any("sk-ant" in x for x in agent_cmd)
     for cache in ("GOMODCACHE", "GOPATH", "GOCACHE", "CARGO_HOME", "npm_config_cache"):
         assert any(x.startswith(f"{cache}=/work/") for x in test_cmd), cache  # L-0007
+    d.test_network = "bridge"  # an operator-listed repo (sandbox.repo_test_network)
+    test_cmd = d.command(["python", "-m", "pytest"], tmp_path, "test", None)
+    assert test_cmd[test_cmd.index("--network") + 1] == "bridge"
+    assert "ALL" in test_cmd and "no-new-privileges" in test_cmd, "still isolated otherwise"
 
 
 # ---------------------------------------------------------------- templates + ledger
@@ -451,6 +455,33 @@ def test_pinned_rust_toolchain_is_installed_into_the_worktree(tmp_path, monkeypa
     )
     DockerRunner(P.load_policy()).run(["cargo", "test"], tmp_path, "test", 10)
     assert f"RUSTUP_HOME=/work/{sandbox.RUSTUP_DIR}" in seen[0]
+
+
+def test_playwright_core_alone_uses_its_own_binary(tmp_path):
+    import json as _json
+
+    from token_tithe.toolchain import detect
+
+    (tmp_path / "pnpm-lock.yaml").write_text("")
+    (tmp_path / "package.json").write_text(
+        _json.dumps({"scripts": {"test": "jest"}, "devDependencies": {"playwright-core": "1.17"}})
+    )
+    assert [["pnpm", "exec", "playwright-core", "install", "chromium"]] in detect(tmp_path).install
+
+
+def test_tests_on_uncommitted_build_output_build_first(tmp_path):
+    import json as _json
+
+    from token_tithe.toolchain import detect
+
+    (tmp_path / "pnpm-lock.yaml").write_text("")
+    (tmp_path / "package.json").write_text(_json.dumps({
+        "main": "out/index.js", "devDependencies": {"jest": "29"},
+        "scripts": {"build": "tsc", "test": "jest --verbose"},
+    }))  # fmt: skip
+    assert detect(tmp_path).test == [["pnpm", "run", "build"], ["pnpm", "test"]]
+    (tmp_path / "out").mkdir()  # committed build output: nothing to build
+    assert detect(tmp_path).test == [["pnpm", "test"]]
 
 
 def test_host_runs_get_no_secrets(monkeypatch, tmp_path):

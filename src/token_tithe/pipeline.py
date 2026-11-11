@@ -100,16 +100,23 @@ def render_markdown(res: QueueResult) -> str:
     return "\n".join(out) + "\n"
 
 
-def gate(etiquette: Etiquette, repo: str, number: int, clone_dir=None) -> str | None:
+def gate(
+    etiquette: Etiquette, repo: str, number: int, clone_dir=None, test_fixtures_ok: bool = False
+) -> str | None:
     """The last check before any agent touches a repo: a FRESH etiquette verdict (opt-out,
     anti-AI, CLA, injection, issue-thread secrets) plus a D4 secrets scan of the local clone.
-    Returns the rejection reason, or None if work may proceed."""
+    `test_fixtures_ok` (operator-listed repos, e.g. secret scanners): hits in test files are
+    ignored; any hit elsewhere still rejects. Returns the rejection reason, or None."""
     from token_tithe.etiquette import scan_clone
+    from token_tithe.secrets_scan import is_test_path
 
     v = etiquette.assess_issue(repo, number, fresh=True)
     if v.rejected:
         return "; ".join(v.reasons)
-    if clone_dir is not None and (hits := scan_clone(clone_dir)):
+    hits = scan_clone(clone_dir) if clone_dir is not None else []
+    if test_fixtures_ok:
+        hits = [h for h in hits if not is_test_path(h.split(":", 1)[0])]
+    if hits:
         kinds = sorted({h.rsplit("(", 1)[-1].rstrip(")") for h in hits})
         return f"leaked credentials in repo ({', '.join(kinds)}; {len(hits)} location(s)) (D4)"
     return None

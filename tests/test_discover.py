@@ -61,6 +61,15 @@ def test_repo_with_broken_tests_is_skipped_unless_picked(api):
     assert keys(res) == {"tithe-fixtures/py-math-bug#12"}
 
 
+def test_fork_is_skipped_unless_picked(api, monkeypatch):
+    real = api.get_repo
+    monkeypatch.setattr(api, "get_repo", lambda repo: {**real(repo), "fork": True})
+    key = "tithe-fixtures/py-math-bug#12"
+    assert skipped(discover(api, P.load_policy(), P.load_repos()))[key] == "is a fork"
+    res = discover(api, P.load_policy(), P.load_repos(), picked=[key])
+    assert keys(res) == {key}
+
+
 def test_license_and_stars_filters(api, config_copy):
     f = config_copy / "policy.yaml"
     data = yaml.safe_load(f.read_text())

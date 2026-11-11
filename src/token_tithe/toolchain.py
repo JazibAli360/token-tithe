@@ -59,6 +59,20 @@ def _browser_suite(w: Path, test_script: str) -> bool:
     return any(re.search(r"@vitest/browser|browser:\s*\{", _read(c)) for c in configs)
 
 
+BUILD_DIRS = ("out", "dist", "lib", "build")
+
+
+def _needs_build(w: Path, pkg: dict, test_script: str) -> bool:
+    """True when the package's entry points live in an uncommitted build directory and the
+    test script does not build it itself."""
+    if "build" not in (pkg.get("scripts") or {}) or re.search(r"\b(build|tsc)\b", test_script):
+        return False
+    bins = pkg.get("bin")
+    entries = [pkg.get("main"), *(bins.values() if isinstance(bins, dict) else [bins])]
+    dirs = {Path(e).parts[0] for e in entries if isinstance(e, str) and len(Path(e).parts) > 1}
+    return any(d in BUILD_DIRS and not (w / d).exists() for d in dirs)
+
+
 def _read(p: Path) -> str:
     try:
         return p.read_text(encoding="utf-8")
@@ -157,12 +171,17 @@ def detect(worktree: Path) -> Profile:
                 prof.install.append([["node", "/opt/tithe/fix-optional.js"]])
             else:
                 prof.install.append([["npm", "install", "--no-audit", "--no-fund"]])
-            if _PLAYWRIGHT.search(_read(w / "package.json")):
+            manifest = _read(w / "package.json")
+            if _PLAYWRIGHT.search(manifest):
                 # the browser build must match the repo's own playwright version, so it is
                 # fetched in the networked install step into PLAYWRIGHT_BROWSERS_PATH (sandbox.py);
                 # the image already has its system libraries, so no --with-deps (needs root)
                 exec_ = ["pnpm", "exec"] if pnpm else ["yarn"] if yarn else ["npx", "--no-install"]
-                prof.install.append([[*exec_, "playwright", "install", "chromium"]])
+                # playwright-core alone ships only a `playwright-core` binary (vercel/nft)
+                full = re.search(r'"(?:@playwright/test|playwright|@vitest/browser-playwright)"\s*:',
+                                 manifest)  # fmt: skip
+                cli = "playwright" if full else "playwright-core"
+                prof.install.append([[*exec_, cli, "install", "chromium"]])
         runner = "pnpm" if pnpm else "yarn" if yarn else None
         test = scripts.get("test", "")
         node_only = next((n for n in NODE_TEST_SCRIPTS if n in scripts), None)
@@ -174,6 +193,10 @@ def detect(worktree: Path) -> Profile:
         # pnpm skips pre/post scripts: a `pretest` that runs `playwright install --with-deps`
         # needs root and network, which offline test runs do not have
         if test and not re.search(r"no test specified", test):
+            if _needs_build(w, pkg, scripts.get(test, test)):
+                # tests import compiled output the repo does not commit (vercel/nft: out/), and
+                # CI builds first; rebuilding on every run makes the tests see the agent's change
+                prof.test.append([runner or "npm", "run", "build"])
             if test in NODE_TEST_SCRIPTS:
                 prof.test.append([runner or "npm", "run", test])
             else:

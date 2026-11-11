@@ -45,6 +45,10 @@ def test_clear_small_issue_outranks_vague_large_one():
     assert ranked[0].score > ranked[1].score + 20
     assert ranked[1].donation_type == "triage_report"  # large → investigate + report (§5)
     assert ranked[0].rationale.startswith(f"Score {ranked[0].score}/100")
+    picked = cand(number=2, title="Bug", body="it is broken, needs a refactor",
+                  labels=["help wanted"], picked=True)  # fmt: skip
+    [t] = triage([picked], {picked.key: ok(picked.key)}, P.load_policy(), {"o/r": True})
+    assert t.donation_type == "issue_fix"  # an operator pick keeps its type
 
 
 def test_rejected_dropped_and_deprioritized_sink():

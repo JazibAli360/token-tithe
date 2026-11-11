@@ -41,6 +41,7 @@ class Candidate:
     description: str = ""
     follow_up_pr: int | None = None  # our closed PR whose thread asked for this follow-up
     follow_up_url: str = ""  # the maintainer's comment that asked for it
+    picked: bool = False  # named by the operator with --only (vetted by hand)
 
     @property
     def key(self) -> str:
@@ -233,6 +234,7 @@ def discover(
                 favorite=repo.lower() in favorites,
                 topics=list(meta.get("topics") or []),
                 description=meta.get("description") or "",
+                picked=bool(picked),
             )
             if follow:
                 pr, ask = follow
@@ -265,7 +267,8 @@ def _repo_reason(api, policy, repos_cfg, repo, cache, recent, now, picked=False)
     pushed = datetime.strptime(meta["pushed_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=UTC)
     if meta.get("archived"):
         return "archived"
-    if meta.get("fork"):
+    # some orgs maintain the live project in a fork; an operator pick may target one
+    if meta.get("fork") and not picked:
         return "is a fork"
     if not license_allowed(policy, spdx):
         return f"license {spdx or 'none'} not allowed (R3)"

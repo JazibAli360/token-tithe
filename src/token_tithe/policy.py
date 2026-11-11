@@ -93,6 +93,12 @@ class Sandbox:
     # extra Python packages for one repo's venv, keyed "owner/name": only optional dependencies
     # the repo itself declares, so a code path its CI covers is verified here too
     repo_extra_deps: dict[str, list[str]] = field(default_factory=dict)
+    # "owner/name" repos whose test runs get network (bridge) instead of `network`: only for
+    # suites that cannot run offline, chosen by the operator; each use is logged in the ledger
+    repo_test_network: list[str] = field(default_factory=list)
+    # "owner/name" repos whose test files carry fake credentials on purpose (secret scanners):
+    # D4 ignores hits in test files there; a hit anywhere else still rejects. Logged per task
+    repo_secret_fixtures: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True)

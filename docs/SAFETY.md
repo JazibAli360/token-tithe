@@ -62,7 +62,10 @@ and are read by the agent. Defences, in depth:
 `sandbox.agent_network` (default `bridge`). **Docker alone cannot restrict that to specific
 hosts.** For strict egress control, run an allowlisting proxy (e.g. Squid or tinyproxy with
 an allowlist of your model API host and the package registries in `install_allowlist`) and set
-`sandbox.install_proxy`. Test and lint runs never have network.
+`sandbox.install_proxy`. Test and lint runs have no network, except for repos you list in
+`sandbox.repo_test_network` because their suites cannot run offline. Those test containers get
+`bridge` network but keep every other restriction, and each such task is logged in the ledger
+as `sandbox_relaxed`. List only repos you trust.
 
 **4. Secrets.** Tokens are read from the environment at call time and never written down
 (R6). `git push` gets the token through a GIT_ASKPASS helper that reads `$GITHUB_TOKEN` — it
@@ -79,7 +82,10 @@ cannot open PRs on repositories you don't own, so they don't work here. `donate 
 warns when the token has more than it needs.
 
 **5. Leaked secrets in target repos (D4).** The clone is scanned before any agent runs; a hit
-skips the repo entirely and the secret is never quoted (only its kind is recorded).
+skips the repo entirely and the secret is never quoted (only its kind is recorded). The one
+exception is a repo you list in `sandbox.repo_secret_fixtures`, such as a secret scanner whose
+tests carry fake keys on purpose. There, hits in test files are ignored, any other hit still skips
+the repo, and each such task is logged as `sandbox_relaxed`.
 
 **6. Our own mistakes.** Rate limits, review mode, the confidence gate, the second review and
 the race recheck all exist so that a bad day produces queued proposals, not bad PRs.

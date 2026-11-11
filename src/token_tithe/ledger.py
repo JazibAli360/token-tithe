@@ -29,6 +29,7 @@ OUTCOMES = {
     "pr_opened", "comment_posted", "queued_for_review", "abandoned", "rejected", "timeout",
     "stopped", "budget_exhausted", "dry_run", "merged", "closed", "stale", "incident",
     "addressed", "skipped", "unaccounted", "model_switch", "subagent", "sizing",
+    "sandbox_relaxed",
 }  # fmt: skip
 
 

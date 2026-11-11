@@ -79,6 +79,17 @@ def scan_lines(files: Iterator[Path], root: Path, match: Callable[[str], str | N
     return hits
 
 
+_TEST_PATH = re.compile(
+    r"(?:^|/)(?:testdata|tests?|__tests__|fixtures?)/|_test\.go$|(?:^|/)test_[^/]*\.py$|"
+    r"_test\.py$|\.(?:test|spec)\.[cm]?[jt]sx?$"
+)
+
+
+def is_test_path(rel: str) -> bool:
+    """True for test code and test data (`x_test.go`, `testdata/`, `tests/`, `a.test.ts`, ...)."""
+    return bool(_TEST_PATH.search(rel.replace("\\", "/")))
+
+
 def scan_tree(
     root: Path, env: Mapping[str, str] | None = None, exclude: tuple[Path, ...] = ()
 ) -> list[str]:

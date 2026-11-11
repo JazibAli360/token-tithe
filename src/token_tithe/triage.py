@@ -204,7 +204,9 @@ def triage(
                  "favorite": fav, "impact": impact, "staleness": stale,
                  "feature_request": feature, "agent_fit": fit}  # fmt: skip
         score = max(0, min(100, sum(comps.values())))
-        if dtype == "issue_fix" and est == "large":
+        # the size guess is keyword-based ("proposal" in a detailed bug report reads as large);
+        # an operator pick was sized by hand, and R8's 400-line limit still applies at verify
+        if dtype == "issue_fix" and est == "large" and not c.picked:
             dtype = "triage_report"  # investigate and report rather than a big PR (§5)
 
         parts = [f"{dtype.replace('_', ' ')} in {c.repo} ({c.language or '?'}, ★{c.stars})"]
